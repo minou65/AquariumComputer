@@ -1,4 +1,4 @@
-// html.h
+﻿// html.h
 
 #ifndef _HTML_h
 #define _HTML_h
@@ -74,6 +74,10 @@ function updateData(jsonData) {
         document.getElementById('Channel3Value').innerHTML = jsonData.outputs.ch3 + "%";
         document.getElementById('RelayValue').innerHTML = jsonData.outputs.relay;
     }
+    if (jsonData.heater) {
+        document.getElementById('TemperatureValue').innerHTML = jsonData.heater.currentTemperature + "&#176;C";
+        document.getElementById('HeaterValue').innerHTML = jsonData.heater.enabled ? "ON" : "OFF";
+    }
 }
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -92,6 +96,7 @@ document.addEventListener('DOMContentLoaded', function() {
         else if (ch === '2') param = 'ch2=' + state;
         else if (ch === '3') param = 'ch3=' + state;
         else if (ch === 'relay') param = 'relay=' + state;
+        else if (ch === 'heater') param = 'heater=' + state;
         fetch('/post', {
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },

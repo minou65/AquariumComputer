@@ -12,6 +12,7 @@
 #include <IotWebConfAsync.h>
 #include <WebSerial.h>
 #include "Scene.h"
+#include "heater.h"
 #include "NTPSettings.h"
 
 #define SERIAL_WEB_SERIAL(...) \

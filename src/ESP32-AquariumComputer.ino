@@ -4,13 +4,13 @@
  Author:	andy
 */
 
-
 #include <Arduino.h>
 
 #include "version.h"
 #include "NTPSettings.h"
 #include "ntp.h"
 #include "Scene.h"
+#include "heater.h"
 #include "handlingWeb.h"
 #include "neotimer.h"
 
@@ -30,7 +30,8 @@ void setup() {
 	}
 	Serial.println("AquariumComputer v" + String(Version) + " started");
 	
-	setupHardware();
+	setupSceneHardware();
+	setupHeaterHardware();
 	setupWebHandling();
 
 	updateSceneTimer();
@@ -77,8 +78,9 @@ void loop() {
 		}
 	}
 
+	loopHeater();
 	
-	if (sceneTimer.repeat() || updateOutputs) {
+	if (sceneTimer.repeat() || updateOutputs || ConfigChanged) {
 		Scene* scene_ = &scenes[0];
 		int minutes_ = getMinutes();
 		if (speedFactor > 1) {

@@ -110,23 +110,25 @@ protected:
 const char PREF_NAMESPACE[] = "OutputStatus";
 
 void saveOutputStatus() {
-    Preferences prefs;
-    prefs.begin(PREF_NAMESPACE, false);
-    for (int i = 0; i < OUTPUT_COUNT; ++i) {
-        String key = "out" + String(i);
-        prefs.putUChar(key.c_str(), static_cast<uint8_t>(outputStatus[i]));
+    Preferences prefs_;
+    prefs_.begin(PREF_NAMESPACE, false);
+    for (int i_ = 0; i_ < OUTPUT_COUNT; ++i_) {
+        String key_ = "out" + String(i_);
+        prefs_.putUChar(key_.c_str(), static_cast<uint8_t>(outputStatus[i_]));
     }
-    prefs.end();
+	prefs_.putUChar("heater", static_cast<uint8_t>(heaterStatus));
+    prefs_.end();
 }
 
 void loadOutputStatus() {
-    Preferences prefs;
-    prefs.begin(PREF_NAMESPACE, true);
-    for (int i = 0; i < OUTPUT_COUNT; ++i) {
-        String key = "out" + String(i);
-        outputStatus[i] = static_cast<OutputStatus>(prefs.getUChar(key.c_str(), OUTPUT_AUTO));
+    Preferences prefs_;
+    prefs_.begin(PREF_NAMESPACE, true);
+    for (int i_ = 0; i_ < OUTPUT_COUNT; ++i_) {
+        String key_ = "out" + String(i_);
+        outputStatus[i_] = static_cast<OutputStatus>(prefs_.getUChar(key_.c_str(), OUTPUT_AUTO));
     }
-    prefs.end();
+	heaterStatus = static_cast<HeaterStatus>(prefs_.getUChar("heater", HEATER_AUTO));
+    prefs_.end();
 }
 
 
@@ -146,7 +148,7 @@ void setupWebHandling() {
     iotWebConf.setHtmlFormatProvider(&customHtmlFormatProvider);
 
    iotWebConf.addParameterGroup(&ntpConfig);
-
+   iotWebConf.addParameterGroup(&heater);
    for (int i = 0; i < MAX_SCENES; ++i) {
 	   iotWebConf.addParameterGroup(&scenes[i]);
    }
@@ -241,6 +243,7 @@ void handlePost(AsyncWebServerRequest* request) {
             scene = (Scene*)scene->getNext();
         }
 		ntpConfig.applyDefaultValue();
+        heater.applyDefaultValue();
     }
 
     auto setOutputStatus = [](const String& value) -> OutputStatus {
@@ -259,6 +262,19 @@ void handlePost(AsyncWebServerRequest* request) {
     if (request->hasParam("relay", true)) {
         String value_ = request->getParam("relay", true)->value();
         outputStatus[3] = setOutputStatus(value_);
+    }
+
+    if (request->hasParam("heater", true)) {
+        String value_ = request->getParam("heater", true)->value();
+        if (value_ == "on") {
+            heaterStatus = HEATER_ON;
+        }
+        else if (value_ == "off") {
+            heaterStatus = HEATER_OFF;
+        }
+        else {
+            heaterStatus = HEATER_AUTO;
+        }
     }
 
 	saveOutputStatus();
@@ -294,6 +310,13 @@ void handleData(AsyncWebServerRequest* request) {
     json_ += ",\"relay\":\"";
     json_ += isRelayActive() ? "ON" : "OFF";
     json_ += "\"}";
+
+    json_ += ",\"heater\":{";
+    json_ += "\"enabled\":" + String(heater.isHeating() ? "true" : "false");
+	json_ += ",\"currentTemperature\":" + String(heater.getCurrentTemperature(), 1);
+    json_ += ",\"maxTemperature\":" + String(heater.maxTemperature(), 1);
+    json_ += ",\"hysteresis\":" + String(heater.hysteresis(), 1);
+    json_ += "}";
 
     json_ += "}";
     request->send(200, "application/json", json_);
@@ -366,6 +389,8 @@ void handleRoot(AsyncWebServerRequest* request) {
     }
 
     response_ += fp_.getHtmlTableRowSpan("Relay", "no data", "RelayValue");
+	response_ += fp_.getHtmlTableRowSpan("Temperature", "no data", "TemperatureValue");
+	response_ += fp_.getHtmlTableRowSpan("Heater", "no data", "HeaterValue");
 
     response_ += fp_.getHtmlTableEnd();
     response_ += fp_.getHtmlFieldsetEnd();
@@ -377,19 +402,30 @@ void handleRoot(AsyncWebServerRequest* request) {
         String id_ = "Channel" + String(ch_ + 1);
         response_ += "<tr><td>" + id_ + "</td><td>";
         response_ += "<div class='btn-group' id='" + id_ + "Btns'>";
-        OutputStatus status = outputStatus[ch_];
-        response_ += "<button class='output-btn" + String(status == OUTPUT_ON ? " active" : "") + "' data-ch='" + String(ch_ + 1) + "' data-state='on'>On</button>";
-        response_ += "<button class='output-btn" + String(status == OUTPUT_OFF ? " active" : "") + "' data-ch='" + String(ch_ + 1) + "' data-state='off'>Off</button>";
-        response_ += "<button class='output-btn" + String(status == OUTPUT_AUTO ? " active" : "") + "' data-ch='" + String(ch_ + 1) + "' data-state='auto'>Auto</button>";
+        OutputStatus outputStatus_ = outputStatus[ch_];
+        response_ += "<button class='output-btn" + String(outputStatus_ == OUTPUT_ON ? " active" : "") + "' data-ch='" + String(ch_ + 1) + "' data-state='on'>On</button>";
+        response_ += "<button class='output-btn" + String(outputStatus_ == OUTPUT_OFF ? " active" : "") + "' data-ch='" + String(ch_ + 1) + "' data-state='off'>Off</button>";
+        response_ += "<button class='output-btn" + String(outputStatus_ == OUTPUT_AUTO ? " active" : "") + "' data-ch='" + String(ch_ + 1) + "' data-state='auto'>Auto</button>";
         response_ += "</div></td></tr>";
     }
     response_ += "<tr><td>Relay</td><td>";
     response_ += "<div class='btn-group' id='RelayBtns'>";
-    OutputStatus relayStatus = outputStatus[3];
-    response_ += "<button class='output-btn" + String(relayStatus == OUTPUT_ON ? " active" : "") + "' data-ch='relay' data-state='on'>On</button>";
-    response_ += "<button class='output-btn" + String(relayStatus == OUTPUT_OFF ? " active" : "") + "' data-ch='relay' data-state='off'>Off</button>";
-    response_ += "<button class='output-btn" + String(relayStatus == OUTPUT_AUTO ? " active" : "") + "' data-ch='relay' data-state='auto'>Auto</button>";
+    OutputStatus relayStatus_ = outputStatus[3];
+    response_ += "<button class='output-btn" + String(relayStatus_ == OUTPUT_ON ? " active" : "") + "' data-ch='relay' data-state='on'>On</button>";
+    response_ += "<button class='output-btn" + String(relayStatus_ == OUTPUT_OFF ? " active" : "") + "' data-ch='relay' data-state='off'>Off</button>";
+    response_ += "<button class='output-btn" + String(relayStatus_ == OUTPUT_AUTO ? " active" : "") + "' data-ch='relay' data-state='auto'>Auto</button>";
     response_ += "</div></td></tr>";
+
+    // Heater Buttons
+    response_ += "<tr><td>Heater</td><td>";
+    response_ += "<div class='btn-group' id='HeaterBtns'>";
+    HeaterStatus heaterStatus_ = heaterStatus;
+    response_ += "<button class='output-btn" + String(heaterStatus_ == HEATER_ON ? " active" : "") + "' data-ch='heater' data-state='on'>On</button>";
+    response_ += "<button class='output-btn" + String(heaterStatus_ == HEATER_OFF ? " active" : "") + "' data-ch='heater' data-state='off'>Off</button>";
+    response_ += "<button class='output-btn" + String(heaterStatus_ == HEATER_AUTO ? " active" : "") + "' data-ch='heater' data-state='auto'>Auto</button>";
+    response_ += "</div></td></tr>";
+
+
     response_ += fp_.getHtmlTableEnd();
     response_ += fp_.getHtmlFieldsetEnd();
 
