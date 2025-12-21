@@ -11,6 +11,7 @@
 #include <IotWebConfAsyncUpdateServer.h>
 #include <IotWebConfAsync.h>
 #include <IotWebRoot.h>
+#include <Preferences.h>
 
 #include "html.h"
 #include "favicon.h"
@@ -93,10 +94,7 @@ public:
 protected:
     String getStyleInner() override {
         String s_ = HtmlRootFormatProvider::getStyleInner();
-        s_ += F(".led {display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; }\n");
-        s_ += F(".led.off {background-color: grey;}\n");
-        s_ += F(".led.on {background-color: green;}\n");
-        s_ += F(".led.delayedoff {background-color: orange;}\n");
+        s_ += String(FPSTR(html_output_styles));
         return s_;
     }
 
@@ -108,6 +106,28 @@ protected:
         return s_;
     }
 };
+
+const char PREF_NAMESPACE[] = "OutputStatus";
+
+void saveOutputStatus() {
+    Preferences prefs;
+    prefs.begin(PREF_NAMESPACE, false);
+    for (int i = 0; i < OUTPUT_COUNT; ++i) {
+        String key = "out" + String(i);
+        prefs.putUChar(key.c_str(), static_cast<uint8_t>(outputStatus[i]));
+    }
+    prefs.end();
+}
+
+void loadOutputStatus() {
+    Preferences prefs;
+    prefs.begin(PREF_NAMESPACE, true);
+    for (int i = 0; i < OUTPUT_COUNT; ++i) {
+        String key = "out" + String(i);
+        outputStatus[i] = static_cast<OutputStatus>(prefs.getUChar(key.c_str(), OUTPUT_AUTO));
+    }
+    prefs.end();
+}
 
 
 void setupWebHandling() {
@@ -201,6 +221,8 @@ void setupWebHandling() {
         handleWebSerialCommand(command);
         }
     );
+
+	loadOutputStatus();
 }
 
 void loopWebHandling() {
@@ -220,6 +242,27 @@ void handlePost(AsyncWebServerRequest* request) {
         }
 		ntpConfig.applyDefaultValue();
     }
+
+    auto setOutputStatus = [](const String& value) -> OutputStatus {
+        if (value == "on") return OUTPUT_ON;
+        if (value == "off") return OUTPUT_OFF;
+        return OUTPUT_AUTO;
+        };
+
+    for (int i = 0; i < 3; ++i) {
+        String param = "ch" + String(i + 1);
+        if (request->hasParam(param, true)) {
+            String value_ = request->getParam(param, true)->value();
+            outputStatus[i] = setOutputStatus(value_);
+        }
+    }
+    if (request->hasParam("relay", true)) {
+        String value_ = request->getParam("relay", true)->value();
+        outputStatus[3] = setOutputStatus(value_);
+    }
+
+	saveOutputStatus();
+	updateOutputs = true;
 
     request->redirect("/");
 }
@@ -327,6 +370,28 @@ void handleRoot(AsyncWebServerRequest* request) {
     response_ += fp_.getHtmlTableEnd();
     response_ += fp_.getHtmlFieldsetEnd();
 
+    response_ += F("<fieldset align=left style=\"border: 1px solid\">\n");
+    response_ += F("<legend>Manual Output Control</legend>\n");
+    response_ += F("<table border=\"0\" align=\"center\" width=\"100%\">\n");
+    for (uint8_t ch_ = 0; ch_ < 3; ++ch_) {
+        String id_ = "Channel" + String(ch_ + 1);
+        response_ += "<tr><td>" + id_ + "</td><td>";
+        response_ += "<div class='btn-group' id='" + id_ + "Btns'>";
+        OutputStatus status = outputStatus[ch_];
+        response_ += "<button class='output-btn" + String(status == OUTPUT_ON ? " active" : "") + "' data-ch='" + String(ch_ + 1) + "' data-state='on'>On</button>";
+        response_ += "<button class='output-btn" + String(status == OUTPUT_OFF ? " active" : "") + "' data-ch='" + String(ch_ + 1) + "' data-state='off'>Off</button>";
+        response_ += "<button class='output-btn" + String(status == OUTPUT_AUTO ? " active" : "") + "' data-ch='" + String(ch_ + 1) + "' data-state='auto'>Auto</button>";
+        response_ += "</div></td></tr>";
+    }
+    response_ += "<tr><td>Relay</td><td>";
+    response_ += "<div class='btn-group' id='RelayBtns'>";
+    OutputStatus relayStatus = outputStatus[3];
+    response_ += "<button class='output-btn" + String(relayStatus == OUTPUT_ON ? " active" : "") + "' data-ch='relay' data-state='on'>On</button>";
+    response_ += "<button class='output-btn" + String(relayStatus == OUTPUT_OFF ? " active" : "") + "' data-ch='relay' data-state='off'>Off</button>";
+    response_ += "<button class='output-btn" + String(relayStatus == OUTPUT_AUTO ? " active" : "") + "' data-ch='relay' data-state='auto'>Auto</button>";
+    response_ += "</div></td></tr>";
+    response_ += fp_.getHtmlTableEnd();
+    response_ += fp_.getHtmlFieldsetEnd();
 
     response_ += fp_.addNewLine(2);
 

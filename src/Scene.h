@@ -15,6 +15,16 @@
 #define NUMBER_LEN 5
 
 #define MAX_SCENES 15
+#define OUTPUT_COUNT 4 // 3 channels + relay
+
+enum OutputStatus {
+    OUTPUT_AUTO = 0,
+    OUTPUT_ON,
+    OUTPUT_OFF
+}; 
+extern OutputStatus outputStatus[OUTPUT_COUNT]; // 3 channels + relay
+
+extern bool updateOutputs;
 
 void setupHardware();
 uint16_t getChannelValue(uint8_t channel);

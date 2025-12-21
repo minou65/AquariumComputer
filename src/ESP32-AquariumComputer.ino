@@ -78,7 +78,7 @@ void loop() {
 	}
 
 	
-	if (sceneTimer.repeat()) {
+	if (sceneTimer.repeat() || updateOutputs) {
 		Scene* scene_ = &scenes[0];
 		int minutes_ = getMinutes();
 		if (speedFactor > 1) {
@@ -94,6 +94,7 @@ void loop() {
 			}
 			scene_ = (Scene*)scene_->getNext();
 		}
+		updateOutputs = false;
 	}
 
 	if (ConfigChanged){

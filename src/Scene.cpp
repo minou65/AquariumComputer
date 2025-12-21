@@ -18,6 +18,15 @@ const int PWM_RESOLUTION = 12; // 12 bit (0-4095)
 
 ESP32PWM Channels[3];
 
+OutputStatus outputStatus[OUTPUT_COUNT]{
+	OUTPUT_AUTO,
+	OUTPUT_AUTO,
+	OUTPUT_AUTO,
+	OUTPUT_AUTO
+}; // 3 channels + relay
+
+bool updateOutputs = true;
+
 void setupHardware() {
 	ESP32PWM::allocateTimer(0);
 	ESP32PWM::allocateTimer(1);
@@ -123,10 +132,28 @@ void Scene::setCurrentScene(int minutes) {
 
 	if (elapsed >= 0 && elapsed < duration) {
 		for (uint8_t channel_ = 1; channel_ <= 3; ++channel_) {
+
+			if (outputStatus[channel_ - 1] == OUTPUT_OFF) {
+				Channels[channel_ - 1].writeScaled(0.0f);
+				continue;
+			} else if (outputStatus[channel_ - 1] == OUTPUT_ON) {
+				Channels[channel_ - 1].writeScaled(1.0f);
+				continue;
+			}
+
 			float value_ = getInterpolatedChannelValue(channel_, minutes);
 			Channels[channel_ - 1].writeScaled(value_);
 		}
-		digitalWrite(RELAY_PIN, isRelayEnabled() ? HIGH : LOW);
+
+		if (outputStatus[3] == OUTPUT_OFF) {
+			digitalWrite(RELAY_PIN, LOW);
+		} else if (outputStatus[3] == OUTPUT_ON) {
+			digitalWrite(RELAY_PIN, HIGH);
+		}
+		else {
+			digitalWrite(RELAY_PIN, isRelayEnabled() ? HIGH : LOW);
+		}
+		
 	}
 }
 
