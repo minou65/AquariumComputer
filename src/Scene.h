@@ -26,7 +26,7 @@ extern OutputStatus outputStatus[OUTPUT_COUNT]; // 3 channels + relay
 
 extern bool updateOutputs;
 
-void setupHardware();
+void setupSceneHardware();
 uint16_t getChannelValue(uint8_t channel);
 bool isRelayActive();
 

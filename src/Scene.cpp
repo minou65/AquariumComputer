@@ -27,7 +27,7 @@ OutputStatus outputStatus[OUTPUT_COUNT]{
 
 bool updateOutputs = true;
 
-void setupHardware() {
+void setupSceneHardware() {
 	ESP32PWM::allocateTimer(0);
 	ESP32PWM::allocateTimer(1);
 	ESP32PWM::allocateTimer(2);
