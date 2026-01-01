@@ -7,10 +7,10 @@
 #include <DallasTemperature.h>
 
 // Pin definition for the temperature sensor
-const int ONE_WIRE_BUS = 23;
+const int ONE_WIRE_BUS = 32;
 
 // Pin definition for the relay
-const int RELAY_PIN = 24;
+const int RELAY_PIN = 34;
 
 // Setup a OneWire instance to communicate with any OneWire devices
 OneWire oneWire(ONE_WIRE_BUS);
