@@ -439,12 +439,15 @@ void handleRoot(AsyncWebServerRequest* request) {
         response_ += "</div>";
         response_ += "</td></tr>";
     }
+
+	// Relay Buttons
     response_ += "<tr><td>Relay</td><td>";
     response_ += "<div class='btn-group' id='RelayBtns'>";
     OutputStatus relayStatus_ = outputStatus[3];
     response_ += "<button class='output-btn on" + String(relayStatus_ == OUTPUT_ON ? " active" : "") + "' data-ch='relay' data-state='on'>On</button>";
     response_ += "<button class='output-btn off" + String(relayStatus_ == OUTPUT_OFF ? " active" : "") + "' data-ch='relay' data-state='off'>Off</button>";
     response_ += "<button class='output-btn auto" + String(relayStatus_ == OUTPUT_AUTO ? " active" : "") + "' data-ch='relay' data-state='auto'>Auto</button>";
+    response_ += "<span class='output-value-placeholder'></span>";
     response_ += "</div></td></tr>";
 
     // Heater Buttons
@@ -454,6 +457,7 @@ void handleRoot(AsyncWebServerRequest* request) {
     response_ += "<button class='output-btn on" + String(heaterStatus_ == HEATER_ON ? " active" : "") + "' data-ch='heater' data-state='on'>On</button>";
     response_ += "<button class='output-btn off" + String(heaterStatus_ == HEATER_OFF ? " active" : "") + "' data-ch='heater' data-state='off'>Off</button>";
     response_ += "<button class='output-btn auto" + String(heaterStatus_ == HEATER_AUTO ? " active" : "") + "' data-ch='heater' data-state='auto'>Auto</button>";
+    response_ += "<span class='output-value-placeholder'></span>";
     response_ += "</div></td></tr>";
 
 
@@ -490,7 +494,6 @@ iotwebconf::WifiAuthInfo* handleConnectWifiFailure() {
 
 void handleWificonnected() {
     ArduinoOTA.begin();
-	ArduinoOTA.setHostname(iotWebConf.getThingName());
 }
 
 void handleWebSerialCommand(const String& command) {

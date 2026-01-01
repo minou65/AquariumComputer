@@ -14,11 +14,12 @@ const char html_output_styles[] PROGMEM = R"====(
 .led.off {background-color: grey;}
 .led.on {background-color: green;}
 .led.delayedoff {background-color: orange;}
-.btn-group { display: flex; gap: 5px; }
-.output-btn { padding: 5px 15px; border-radius: 5px; border: 1px solid #888; background: #eee; cursor: pointer; }
+.btn-group { display: flex; gap: 5px; flex-wrap: nowrap; }
+.output-btn { min-width: 70px; padding: 5px 15px; border-radius: 5px; border: 1px solid #888; background: #eee; cursor: pointer; }
 .output-btn.on.active { background: #4caf50; color: #fff; }
 .output-btn.off.active { background: #f44336; color: #fff; }
 .output-btn.auto.active { background: #03a9f4; color: #fff; }
+.output-value-placeholder { min-width: 40px; display: inline-block; visibility: hidden;}
 )====";
 
 const char html_form_end[] PROGMEM = R"=====(
