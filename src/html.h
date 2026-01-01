@@ -16,7 +16,9 @@ const char html_output_styles[] PROGMEM = R"====(
 .led.delayedoff {background-color: orange;}
 .btn-group { display: flex; gap: 5px; }
 .output-btn { padding: 5px 15px; border-radius: 5px; border: 1px solid #888; background: #eee; cursor: pointer; }
-.output-btn.active { background: #4caf50; color: #fff; }
+.output-btn.on.active { background: #4caf50; color: #fff; }
+.output-btn.off.active { background: #f44336; color: #fff; }
+.output-btn.auto.active { background: #03a9f4; color: #fff; }
 )====";
 
 const char html_form_end[] PROGMEM = R"=====(
@@ -80,6 +82,7 @@ function updateData(jsonData) {
     }
 }
 
+
 document.addEventListener('DOMContentLoaded', function() {
   document.querySelectorAll('.btn-group').forEach(group => {
     group.querySelectorAll('.output-btn').forEach(btn => {
@@ -104,9 +107,38 @@ document.addEventListener('DOMContentLoaded', function() {
         }).then(response => {
           if (response.ok) window.location.reload();
         });
+        // Helligkeitsfeld aktivieren/deaktivieren
+        if (ch === '1' || ch === '2' || ch === '3') {
+          let input = document.getElementById('brightnessCh' + ch);
+          if (input) {
+            input.disabled = (state !== 'on');
+            if (state !== 'on') input.value = 0;
+          }
+        }
       });
     });
   });
+
+  // Helligkeitsfelder: POST bei Änderung, nur wenn ON
+  for (let i = 1; i <= 3; i++) {
+    let input = document.getElementById('brightnessCh' + i);
+    let onBtn = document.querySelector('#Channel' + i + 'Btns .output-btn.on');
+    if (input) {
+      input.addEventListener('change', function() {
+        if (onBtn && onBtn.classList.contains('active')) {
+          let val = input.value;
+          if (val < 0) val = 0;
+          if (val > 100) val = 100;
+          let data = 'ch' + i + '=on&brightnessCh' + i + '=' + val;
+          fetch('/post', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: data
+          });
+        }
+      });
+    }
+  }
 });
 
 function setOutputButtonState(ch, state) {

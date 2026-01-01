@@ -30,7 +30,7 @@ extern char Version[];
 // -- Status indicator pin.
 //      First it will light up (kept LOW), on Wifi connection it will blink,
 //      when connected to the Wifi it will turn off (kept HIGH).
-#define STATUS_PIN LED_BUILTIN
+#define STATUS_PIN GPIO_NUM_23
 #define ON_LEVEL HIGH
 
 // -- Initial name of the Thing. Used e.g. as SSID of the own Access Point.
@@ -116,6 +116,10 @@ void saveOutputStatus() {
         String key_ = "out" + String(i_);
         prefs_.putUChar(key_.c_str(), static_cast<uint8_t>(outputStatus[i_]));
     }
+    for (int i_ = 0; i_ < 3; ++i_) {
+        String key_ = "ch" + String(i_);
+        prefs_.putFloat(key_.c_str(), ChannelsBrigthness[i_]);
+    }
 	prefs_.putUChar("heater", static_cast<uint8_t>(heaterStatus));
     prefs_.end();
 }
@@ -127,6 +131,10 @@ void loadOutputStatus() {
         String key_ = "out" + String(i_);
         outputStatus[i_] = static_cast<OutputStatus>(prefs_.getUChar(key_.c_str(), OUTPUT_AUTO));
     }
+    for (int i_ = 0; i_ < 3; ++i_) {
+        String key_ = "ch" + String(i_);
+        ChannelsBrigthness[i_] = prefs_.getFloat(key_.c_str(), 1.0f);
+	}
 	heaterStatus = static_cast<HeaterStatus>(prefs_.getUChar("heater", HEATER_AUTO));
     prefs_.end();
 }
@@ -230,6 +238,10 @@ void setupWebHandling() {
 void loopWebHandling() {
     iotWebConf.doLoop();
     ArduinoOTA.handle();
+
+    if (!ShouldReboot) {
+        ShouldReboot = AsyncUpdater.isFinished();
+    }
 }
 
 void handlePost(AsyncWebServerRequest* request) {
@@ -274,6 +286,17 @@ void handlePost(AsyncWebServerRequest* request) {
         }
         else {
             heaterStatus = HEATER_AUTO;
+        }
+    }
+
+    for (int i_ = 0; i_ < 3; ++i_) {
+        String brightParam_ = "brightnessCh" + String(i_ + 1);
+        if (request->hasParam(brightParam_, true) && outputStatus[i_] == OUTPUT_ON) {
+            String valStr_ = request->getParam(brightParam_, true)->value();
+            int val_ = valStr_.toInt();
+            if (val_ < 0) val_ = 0;
+            if (val_ > 100) val_ = 100;
+			setChannelValue(i_ + 1, val_);
         }
     }
 
@@ -403,26 +426,34 @@ void handleRoot(AsyncWebServerRequest* request) {
         response_ += "<tr><td>" + id_ + "</td><td>";
         response_ += "<div class='btn-group' id='" + id_ + "Btns'>";
         OutputStatus outputStatus_ = outputStatus[ch_];
-        response_ += "<button class='output-btn" + String(outputStatus_ == OUTPUT_ON ? " active" : "") + "' data-ch='" + String(ch_ + 1) + "' data-state='on'>On</button>";
-        response_ += "<button class='output-btn" + String(outputStatus_ == OUTPUT_OFF ? " active" : "") + "' data-ch='" + String(ch_ + 1) + "' data-state='off'>Off</button>";
-        response_ += "<button class='output-btn" + String(outputStatus_ == OUTPUT_AUTO ? " active" : "") + "' data-ch='" + String(ch_ + 1) + "' data-state='auto'>Auto</button>";
-        response_ += "</div></td></tr>";
+        response_ += "<button class='output-btn on" + String(outputStatus_ == OUTPUT_ON ? " active" : "") + "' data-ch='" + String(ch_ + 1) + "' data-state='on'>On</button>";
+        response_ += "<button class='output-btn off" + String(outputStatus_ == OUTPUT_OFF ? " active" : "") + "' data-ch='" + String(ch_ + 1) + "' data-state='off'>Off</button>";
+        response_ += "<button class='output-btn auto" + String(outputStatus_ == OUTPUT_AUTO ? " active" : "") + "' data-ch='" + String(ch_ + 1) + "' data-state='auto'>Auto</button>";
+        int brightnessValue_ = (int)(getChannelValue(ch_ + 1));
+        int inputValue_ = (outputStatus_ == OUTPUT_ON) ? brightnessValue_ : 0;
+        response_ += "<input type='number' min='0' max='100' id='brightnessCh" + String(ch_ + 1) + "' name='brightnessCh" + String(ch_ + 1) + "' value='" + String(inputValue_) + "' style='width:40px; margin-left:10px;'";
+        if (outputStatus_ != OUTPUT_ON) {
+            response_ += " disabled";
+        }
+        response_ += ">";
+        response_ += "</div>";
+        response_ += "</td></tr>";
     }
     response_ += "<tr><td>Relay</td><td>";
     response_ += "<div class='btn-group' id='RelayBtns'>";
     OutputStatus relayStatus_ = outputStatus[3];
-    response_ += "<button class='output-btn" + String(relayStatus_ == OUTPUT_ON ? " active" : "") + "' data-ch='relay' data-state='on'>On</button>";
-    response_ += "<button class='output-btn" + String(relayStatus_ == OUTPUT_OFF ? " active" : "") + "' data-ch='relay' data-state='off'>Off</button>";
-    response_ += "<button class='output-btn" + String(relayStatus_ == OUTPUT_AUTO ? " active" : "") + "' data-ch='relay' data-state='auto'>Auto</button>";
+    response_ += "<button class='output-btn on" + String(relayStatus_ == OUTPUT_ON ? " active" : "") + "' data-ch='relay' data-state='on'>On</button>";
+    response_ += "<button class='output-btn off" + String(relayStatus_ == OUTPUT_OFF ? " active" : "") + "' data-ch='relay' data-state='off'>Off</button>";
+    response_ += "<button class='output-btn auto" + String(relayStatus_ == OUTPUT_AUTO ? " active" : "") + "' data-ch='relay' data-state='auto'>Auto</button>";
     response_ += "</div></td></tr>";
 
     // Heater Buttons
     response_ += "<tr><td>Heater</td><td>";
     response_ += "<div class='btn-group' id='HeaterBtns'>";
     HeaterStatus heaterStatus_ = heaterStatus;
-    response_ += "<button class='output-btn" + String(heaterStatus_ == HEATER_ON ? " active" : "") + "' data-ch='heater' data-state='on'>On</button>";
-    response_ += "<button class='output-btn" + String(heaterStatus_ == HEATER_OFF ? " active" : "") + "' data-ch='heater' data-state='off'>Off</button>";
-    response_ += "<button class='output-btn" + String(heaterStatus_ == HEATER_AUTO ? " active" : "") + "' data-ch='heater' data-state='auto'>Auto</button>";
+    response_ += "<button class='output-btn on" + String(heaterStatus_ == HEATER_ON ? " active" : "") + "' data-ch='heater' data-state='on'>On</button>";
+    response_ += "<button class='output-btn off" + String(heaterStatus_ == HEATER_OFF ? " active" : "") + "' data-ch='heater' data-state='off'>Off</button>";
+    response_ += "<button class='output-btn auto" + String(heaterStatus_ == HEATER_AUTO ? " active" : "") + "' data-ch='heater' data-state='auto'>Auto</button>";
     response_ += "</div></td></tr>";
 
 
@@ -459,6 +490,7 @@ iotwebconf::WifiAuthInfo* handleConnectWifiFailure() {
 
 void handleWificonnected() {
     ArduinoOTA.begin();
+	ArduinoOTA.setHostname(iotWebConf.getThingName());
 }
 
 void handleWebSerialCommand(const String& command) {

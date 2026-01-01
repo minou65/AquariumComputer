@@ -23,10 +23,11 @@ enum OutputStatus {
     OUTPUT_OFF
 }; 
 extern OutputStatus outputStatus[OUTPUT_COUNT]; // 3 channels + relay
-
+extern float ChannelsBrigthness[3];
 extern bool updateOutputs;
 
 void setupSceneHardware();
+void setChannelValue(uint8_t channel, uint16_t value);
 uint16_t getChannelValue(uint8_t channel);
 bool isRelayActive();
 
@@ -41,18 +42,14 @@ public:
        bool isJumpEnabled() const;
 	   bool isRelayEnabled() const;
 
-
-
        void setCurrentScene(int minutes);
-
 private:
     float getInterpolatedChannelValue(uint8_t channel, int minutes);
     Scene* findNextActive();
     void getSceneTiming(int minutes, int& duration, int& elapsed) const;
     
-
     String _id;
-
+	
     char _TimeValue[STRING_LEN] = { 0 };
     char _CH1Value[NUMBER_LEN] = { 0 };
     char _CH2Value[NUMBER_LEN] = { 0 };

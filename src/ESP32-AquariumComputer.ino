@@ -91,9 +91,7 @@ void loop() {
 		}
 
 		while (scene_ != nullptr) {
-			if (scene_->isActive()) {
-				scene_->setCurrentScene(minutes_);
-			}
+			scene_->setCurrentScene(minutes_);
 			scene_ = (Scene*)scene_->getNext();
 		}
 		updateOutputs = false;

@@ -5,18 +5,19 @@
 #include <ESP32PWM.h>
 
 // Pin definitions for the MOSFETs
-const int MOSFET1_PIN = 18;
-const int MOSFET2_PIN = 19;
-const int MOSFET3_PIN = 21;
+const int MOSFET1_PIN = 12;
+const int MOSFET2_PIN = 13;
+const int MOSFET3_PIN = 14;
 
 // Pin definition for the relay
-const int RELAY_PIN = 22;
+const int RELAY_PIN = GPIO_NUM_16;
 
 // PWM configuration
 const int PWM_FREQ = 5000; // 5 kHz
 const int PWM_RESOLUTION = 12; // 12 bit (0-4095)
 
 ESP32PWM Channels[3];
+float ChannelsBrigthness[3] = { 1.0f, 1.0f, 1.0f };
 
 OutputStatus outputStatus[OUTPUT_COUNT]{
 	OUTPUT_AUTO,
@@ -45,9 +46,16 @@ void setupSceneHardware() {
 	digitalWrite(RELAY_PIN, LOW);
 }
 
+void setChannelValue(uint8_t channel, uint16_t value) {
+	if (channel >= 1 && channel <= 3) {
+		if (value > 100) value = 100;
+		ChannelsBrigthness[channel - 1] = value / 100.0f;
+	}
+}
+
 uint16_t getChannelValue(uint8_t channel) {
 	if (channel >= 1 && channel <= 3) {
-		return Channels[channel - 1].getDutyScaled() * 100;
+		return (uint16_t)round(Channels[channel - 1].getDutyScaled() * 100);
 	}
 	return 0;
 }
@@ -127,39 +135,39 @@ bool Scene::isRelayEnabled() const {
 }
 
 void Scene::setCurrentScene(int minutes) {
-	int duration, elapsed;
-	getSceneTiming(minutes, duration, elapsed);
+	int duration_, elapsed_;
+	getSceneTiming(minutes, duration_, elapsed_);
 
-	if (elapsed >= 0 && elapsed < duration) {
-		for (uint8_t channel_ = 1; channel_ <= 3; ++channel_) {
-
-			if (outputStatus[channel_ - 1] == OUTPUT_OFF) {
-				Channels[channel_ - 1].writeScaled(0.0f);
-				continue;
-			} else if (outputStatus[channel_ - 1] == OUTPUT_ON) {
-				Channels[channel_ - 1].writeScaled(1.0f);
-				continue;
-			}
-
+	// Handle channels
+	for (uint8_t channel_ = 1; channel_ <= 3; ++channel_) {
+		if (outputStatus[channel_ - 1] == OUTPUT_AUTO && (elapsed_ >= 0 && elapsed_ < duration_)) {
 			float value_ = getInterpolatedChannelValue(channel_, minutes);
 			Channels[channel_ - 1].writeScaled(value_);
+			ChannelsBrigthness[channel_ - 1] = value_;
 		}
+		else if (outputStatus[channel_ - 1] == OUTPUT_ON) {
+			Channels[channel_ - 1].writeScaled(ChannelsBrigthness[channel_ - 1]);
+		}
+		else if (outputStatus[channel_ - 1] == OUTPUT_OFF) {
+			Channels[channel_ - 1].writeScaled(0.0f);
+		}
+	}
 
-		if (outputStatus[3] == OUTPUT_OFF) {
-			digitalWrite(RELAY_PIN, LOW);
-		} else if (outputStatus[3] == OUTPUT_ON) {
-			digitalWrite(RELAY_PIN, HIGH);
-		}
-		else {
-			digitalWrite(RELAY_PIN, isRelayEnabled() ? HIGH : LOW);
-		}
-		
+	// Handle relay
+	if (outputStatus[3] == OUTPUT_AUTO && (elapsed_ >= 0 && elapsed_ < duration_)) {
+		digitalWrite(RELAY_PIN, isRelayEnabled() ? HIGH : LOW);
+	}
+	else if (outputStatus[3] == OUTPUT_ON) {
+		digitalWrite(RELAY_PIN, HIGH);
+	}
+	else if (outputStatus[3] == OUTPUT_OFF) {
+		digitalWrite(RELAY_PIN, LOW);
 	}
 }
 
 float Scene::getInterpolatedChannelValue(uint8_t channel, int minutes) {
-	int duration, elapsed;
-	getSceneTiming(minutes, duration, elapsed);
+	int duration_, elapsed_;
+	getSceneTiming(minutes, duration_, elapsed_);
 
 	Scene* next_ = findNextActive();
 	if (next_ != nullptr && next_->isJumpEnabled()) {
@@ -170,8 +178,8 @@ float Scene::getInterpolatedChannelValue(uint8_t channel, int minutes) {
 	float endPoint_ = next_ ? next_->getChannelValue(channel) / 100.0f : startPoint_;
 
 	float value_ = startPoint_;
-	if (duration > 0) {
-		value_ = startPoint_ + (endPoint_ - startPoint_) * (elapsed / (float)duration);
+	if (duration_ > 0) {
+		value_ = startPoint_ + (endPoint_ - startPoint_) * (elapsed_ / (float)duration_);
 	}
 	return value_;
 }
@@ -198,16 +206,16 @@ Scene* Scene::findNextActive() {
 	return nullptr;
 }
 
-// Returns duration and elapsed (by reference) for a given minute value, handling day wrap-around
-void Scene::getSceneTiming(int minutes, int& duration, int& elapsed) const {
+// Returns duration_ and elapsed_ (by reference) for a given minute value, handling day wrap-around
+void Scene::getSceneTiming(int minutes, int& duration_, int& elapsed_) const {
 	int currentSceneMinutes_ = getTimeMinutes();
 	int nextSceneMinutes_ = 24 * 60; // Default: 24:00
 	Scene* next_ = const_cast<Scene*>(this)->findNextActive();
 	if (next_ != nullptr) {
 		nextSceneMinutes_ = next_->getTimeMinutes();
 	}
-	duration = (nextSceneMinutes_ - currentSceneMinutes_ + 1440) % 1440;
-	elapsed = (minutes - currentSceneMinutes_ + 1440) % 1440;
+	duration_ = (nextSceneMinutes_ - currentSceneMinutes_ + 1440) % 1440;
+	elapsed_ = (minutes - currentSceneMinutes_ + 1440) % 1440;
 }
 
 Scene scenes[MAX_SCENES] = {
