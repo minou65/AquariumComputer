@@ -91,6 +91,24 @@ public:
         return s_;
     }
 
+    String getOutputControlRow(const String& label, const String& id, OutputStatus status, int value, bool hasInputField) {
+        String html_ = "<tr><td>" + label + "</td><td>";
+        html_ += "<div class='btn-group' id='Channel" + id + "Btns'>";
+        html_ += "<button class='output-btn on" + String(status == OUTPUT_ON ? " active" : "") + "' data-ch='" + id + "' data-state='on'>On</button>";
+        html_ += "<button class='output-btn off" + String(status == OUTPUT_OFF ? " active" : "") + "' data-ch='" + id + "' data-state='off'>Off</button>";
+        html_ += "<button class='output-btn auto" + String(status == OUTPUT_AUTO ? " active" : "") + "' data-ch='" + id + "' data-state='auto'>Auto</button>";
+        if (hasInputField) {
+            html_ += "<input type='number' min='0' max='100' id='brightnessCh" + id + "' name='brightnessCh" + id + "' value='" + String(value) + "' class='brightness-input'";
+            if (status != OUTPUT_ON) html_ += " disabled";
+            html_ += ">";
+        }
+        else {
+            html_ += "<input type='number' min='0' max='100' id='brightnessCh" + id + "' name='brightnessCh" + id + "' value='0' class='brightness-input' disabled>";
+        }
+        html_ += "</div></td></tr>";
+        return html_;
+    }
+
 protected:
     String getStyleInner() override {
         String s_ = HtmlRootFormatProvider::getStyleInner();
@@ -405,15 +423,10 @@ void handleRoot(AsyncWebServerRequest* request) {
     response_ += F("<fieldset align=left style=\"border: 1px solid\">\n");
     response_ += F("<legend>Aktuelle Werte</legend>\n");
     response_ += F("<table border=\"0\" align=\"center\" width=\"100%\">\n");
-
-    for (uint8_t ch_ = 1; ch_ <= 3; ++ch_) {
-        String id_ = "Channel" + String(ch_) + "Value";
-        response_ += fp_.getHtmlTableRowSpan(String("Channel ") + String(ch_), "no data", id_);
-    }
-
-    response_ += fp_.getHtmlTableRowSpan("Relay", "no data", "RelayValue");
+    
 	response_ += fp_.getHtmlTableRowSpan("Temperature", "no data", "TemperatureValue");
 	response_ += fp_.getHtmlTableRowSpan("Heater", "no data", "HeaterValue");
+    response_ += fp_.getHtmlTableRowSpan("Relay", "no data", "RelayValue");
 
     response_ += fp_.getHtmlTableEnd();
     response_ += fp_.getHtmlFieldsetEnd();
@@ -422,44 +435,10 @@ void handleRoot(AsyncWebServerRequest* request) {
     response_ += F("<legend>Manual Output Control</legend>\n");
     response_ += F("<table border=\"0\" align=\"center\" width=\"100%\">\n");
     for (uint8_t ch_ = 0; ch_ < 3; ++ch_) {
-        String id_ = "Channel" + String(ch_ + 1);
-        response_ += "<tr><td>" + id_ + "</td><td>";
-        response_ += "<div class='btn-group' id='" + id_ + "Btns'>";
-        OutputStatus outputStatus_ = outputStatus[ch_];
-        response_ += "<button class='output-btn on" + String(outputStatus_ == OUTPUT_ON ? " active" : "") + "' data-ch='" + String(ch_ + 1) + "' data-state='on'>On</button>";
-        response_ += "<button class='output-btn off" + String(outputStatus_ == OUTPUT_OFF ? " active" : "") + "' data-ch='" + String(ch_ + 1) + "' data-state='off'>Off</button>";
-        response_ += "<button class='output-btn auto" + String(outputStatus_ == OUTPUT_AUTO ? " active" : "") + "' data-ch='" + String(ch_ + 1) + "' data-state='auto'>Auto</button>";
-        int brightnessValue_ = (int)(getChannelValue(ch_ + 1));
-        int inputValue_ = (outputStatus_ == OUTPUT_ON) ? brightnessValue_ : 0;
-        response_ += "<input type='number' min='0' max='100' id='brightnessCh" + String(ch_ + 1) + "' name='brightnessCh" + String(ch_ + 1) + "' value='" + String(inputValue_) + "' style='width:40px; margin-left:10px;'";
-        if (outputStatus_ != OUTPUT_ON) {
-            response_ += " disabled";
-        }
-        response_ += ">";
-        response_ += "</div>";
-        response_ += "</td></tr>";
+        response_ += fp_.getOutputControlRow("Channel " + String(ch_ + 1), String(ch_ + 1), outputStatus[ch_], getChannelValue(ch_ + 1), true);
     }
-
-	// Relay Buttons
-    response_ += "<tr><td>Relay</td><td>";
-    response_ += "<div class='btn-group' id='RelayBtns'>";
-    OutputStatus relayStatus_ = outputStatus[3];
-    response_ += "<button class='output-btn on" + String(relayStatus_ == OUTPUT_ON ? " active" : "") + "' data-ch='relay' data-state='on'>On</button>";
-    response_ += "<button class='output-btn off" + String(relayStatus_ == OUTPUT_OFF ? " active" : "") + "' data-ch='relay' data-state='off'>Off</button>";
-    response_ += "<button class='output-btn auto" + String(relayStatus_ == OUTPUT_AUTO ? " active" : "") + "' data-ch='relay' data-state='auto'>Auto</button>";
-    response_ += "<span class='output-value-placeholder'></span>";
-    response_ += "</div></td></tr>";
-
-    // Heater Buttons
-    response_ += "<tr><td>Heater</td><td>";
-    response_ += "<div class='btn-group' id='HeaterBtns'>";
-    HeaterStatus heaterStatus_ = heaterStatus;
-    response_ += "<button class='output-btn on" + String(heaterStatus_ == HEATER_ON ? " active" : "") + "' data-ch='heater' data-state='on'>On</button>";
-    response_ += "<button class='output-btn off" + String(heaterStatus_ == HEATER_OFF ? " active" : "") + "' data-ch='heater' data-state='off'>Off</button>";
-    response_ += "<button class='output-btn auto" + String(heaterStatus_ == HEATER_AUTO ? " active" : "") + "' data-ch='heater' data-state='auto'>Auto</button>";
-    response_ += "<span class='output-value-placeholder'></span>";
-    response_ += "</div></td></tr>";
-
+    response_ += fp_.getOutputControlRow("Relay", "relay", outputStatus[3], 0, false);
+    response_ += fp_.getOutputControlRow("Heater", "heater", static_cast<OutputStatus>(heaterStatus), 0, false);
 
     response_ += fp_.getHtmlTableEnd();
     response_ += fp_.getHtmlFieldsetEnd();
