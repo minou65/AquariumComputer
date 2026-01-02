@@ -19,7 +19,7 @@ const char html_output_styles[] PROGMEM = R"====(
 .output-btn.on.active { background: #4caf50; color: #fff; }
 .output-btn.off.active { background: #f44336; color: #fff; }
 .output-btn.auto.active { background: #03a9f4; color: #fff; }
-.output-value-placeholder { min-width: 40px; display: inline-block; visibility: hidden;}
+.brightness-input { width: 50px; margin-left: 10px; text-align: center; }
 )====";
 
 const char html_form_end[] PROGMEM = R"=====(
@@ -72,10 +72,17 @@ function updateLED(element, status) {
 function updateData(jsonData) {
     document.getElementById('RSSIValue').innerHTML = jsonData.RSSI + "dBm";
     if (jsonData.outputs) {
-        document.getElementById('Channel1Value').innerHTML = jsonData.outputs.ch1 + "%";
-        document.getElementById('Channel2Value').innerHTML = jsonData.outputs.ch2 + "%";
-        document.getElementById('Channel3Value').innerHTML = jsonData.outputs.ch3 + "%";
+       // document.getElementById('Channel1Value').innerHTML = jsonData.outputs.ch1 + "%";
+       // document.getElementById('Channel2Value').innerHTML = jsonData.outputs.ch2 + "%";
+       // document.getElementById('Channel3Value').innerHTML = jsonData.outputs.ch3 + "%";
         document.getElementById('RelayValue').innerHTML = jsonData.outputs.relay;
+
+        for (let i = 1; i <= 3; i++) {
+            let input = document.getElementById('brightnessCh' + i);
+            if (input) {
+                input.value = jsonData.outputs['ch' + i];
+            }
+        }
     }
     if (jsonData.heater) {
         document.getElementById('TemperatureValue').innerHTML = jsonData.heater.currentTemperature + "&#176;C";
