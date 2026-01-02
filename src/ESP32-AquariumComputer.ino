@@ -30,12 +30,18 @@ void setup() {
 	}
 	Serial.println("AquariumComputer v" + String(Version) + " started");
 	
+	Serial.println("Setting up scene hardware...");
 	setupSceneHardware();
+
+	Serial.println("Setting up heater hardware...");
 	setupHeaterHardware();
+
+	Serial.println("Setting up web handling...");
 	setupWebHandling();
 
 	updateSceneTimer();
 
+	Serial.println("Setting up NTP client...");
 	if (ntpConfig.useNtpServer()) {
 		ntpClient.begin(ntpConfig.ntpServer(), ntpConfig.timeZone(), 0);
 	}
