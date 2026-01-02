@@ -10,7 +10,7 @@
 const int ONE_WIRE_BUS = 32;
 
 // Pin definition for the relay
-const int RELAY_PIN = 34;
+const int RELAY_PIN = 33;
 
 // Setup a OneWire instance to communicate with any OneWire devices
 OneWire oneWire(ONE_WIRE_BUS);
