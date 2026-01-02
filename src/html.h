@@ -72,9 +72,6 @@ function updateLED(element, status) {
 function updateData(jsonData) {
     document.getElementById('RSSIValue').innerHTML = jsonData.RSSI + "dBm";
     if (jsonData.outputs) {
-       // document.getElementById('Channel1Value').innerHTML = jsonData.outputs.ch1 + "%";
-       // document.getElementById('Channel2Value').innerHTML = jsonData.outputs.ch2 + "%";
-       // document.getElementById('Channel3Value').innerHTML = jsonData.outputs.ch3 + "%";
         document.getElementById('RelayValue').innerHTML = jsonData.outputs.relay;
 
         for (let i = 1; i <= 3; i++) {
@@ -120,7 +117,20 @@ document.addEventListener('DOMContentLoaded', function() {
           let input = document.getElementById('brightnessCh' + ch);
           if (input) {
             input.disabled = (state !== 'on');
-            if (state !== 'on') input.value = 0;
+            if (state === 'on') {
+              input.value = 100;
+              // Optional: Wert sofort an Backend senden
+              let data = 'ch' + ch + '=on&brightnessCh' + ch + '=100';
+              fetch('/post', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: data
+              }).then(response => {
+                if (response.ok) window.location.reload();
+              });
+            } else {
+              input.value = 0;
+            }
           }
         }
       });
