@@ -24,8 +24,13 @@ const char html_output_styles[] PROGMEM = R"====(
 
 const char html_form_end[] PROGMEM = R"=====(
 </br><form action='/reboot' method='get'><button type='submit'>Reboot</button></form>
-</br><a href='/'>Home</a>
-</br><a href='#' onclick="postReset()">Reset to factory defaults</a>
+</br><form action='/' method='get' style='display:inline;'>
+  <button type='submit'>Home</button>
+  </br>
+</form>
+</br><form action='/post' method='post' style='display:inline;' onsubmit="event.preventDefault(); postReset();">
+  <button type='submit'>Reset to factory defaults</button>
+</form>
 <script>
 function postReset() {
     fetch('/post', {
