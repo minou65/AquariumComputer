@@ -99,6 +99,33 @@ Aktivieren Sie diese Option, um das automatische Fading zu deaktivieren:
 - **Aktiviert:** Die Werte werden sofort auf die eingestellten Werte gesetzt (harter Übergang)
 - **Deaktiviert:** Die Werte werden weich von der vorherigen Szene überblendet (Standard)
 
+#### Funktionsweise der Szenenverwaltung
+
+**Automatische Interpolation:**
+Das System interpoliert automatisch zwischen zwei aufeinanderfolgenden Szenen. Wenn Sie beispielsweise:
+- Szene 1 um 08:00 mit 100% Helligkeit
+- Szene 2 um 10:00 mit 50% Helligkeit
+
+einstellen, wird die Helligkeit über die 2 Stunden hinweg linear von 100% auf 50% reduziert.
+
+**Tagesübergänge (Day-Wrap-Around):**
+Das System berücksichtigt auch Szenenübergänge über Mitternacht. Beispielsweise:
+- Letzte Szene um 23:00 mit 10% Mondlicht
+- Erste Szene um 06:00 mit 0% Mondlicht
+
+Das System berechnet den Übergang korrekt über die Mitternacht hinweg.
+
+**Ausgabe-Steuerungsmodi:**
+Jeder der 4 Ausgänge (3 PWM-Kanäle + 1 Relais) kann in 3 Modi betrieben werden:
+- **AUTO:** Das System folgt automatisch der aktuellen Szene (mit Interpolation zu nächster Szene)
+- **ON:** Der Ausgang wird manuell eingeschaltet und ignoriert alle Szenenvorgaben
+- **OFF:** Der Ausgang wird manuell ausgeschaltet und ignoriert alle Szenenvorgaben
+
+Dies ermöglicht Überschreibungen der automatischen Szenenuführung für Tests oder manuelle Steuerung.
+
+**Sprungtransitionen:**
+Wenn das Jump-Flag aktiviert ist, wird die Interpolation für diese Szene übersprungen. Statt einer sanften Überblendung erfolgt ein sofortiger Sprung auf die Sollwerte der aktuellen Szene. Dies ist nützlich für plötzliche Lichtwechsel oder Notfallszenarien.
+
 ### Konfigurationsbeispiel
 Um 06:00 leuchtet das Mondlicht mit 10%. Bis um 09:00 wird es auf 0% geregelt, gleichzeit wird Channel 1 auf 30% geregelt. Von 09:00 bis 12:00 Uhr werden Channel 1 und 2 auf 100% geregelt. Ab 12:00 Uhr wird das Relais eingeschaltet und damit die CO2 zufuhr aktiviert. Um 18:00 Uhr wird das Relais wieder deaktiviert, Channel 1 und 2 sind immer noch auf 100%. Diese werden nun bis 20:00 Uhr auf 30 resp. 0% geregelt. Ab 20:00 Uhr bis 22:00 wird Channel 1 auf 0% regelt und das Mondlicht auf 10%. Dieses ist dann wieder bis 06:00 am nächsten Morgen auf 10%
 
@@ -147,6 +174,76 @@ Für den Bau des Aquarium Computers wird folgende Hardware benötigt:
 - Verwenden Sie ausreichend dimensionierte Kabel (Querschnitt je nach Stromstärke)
 - Die wasserdichten M12-Verbinder eignen sich besonders für den Einsatz in der Nähe des Aquariums
 - Beachten Sie die Sicherheitshinweise beim Umgang mit Netzspannung
+
+## Web-Interface
+
+### Homepage
+
+Die Homepage bietet einen Überblick über den aktuellen Status des Aquarium Computers und ermöglicht manuelle Steuerung der Ausgänge.
+
+#### Informationsbereich
+Die Homepage zeigt folgende Echtzeit-Informationen:
+
+**Datum & Uhrzeit**
+- Aktuelle Systemzeit, synchronisiert über NTP
+- Wird automatisch jede Sekunde aktualisiert
+
+**WiFi-Signalstärke (RSSI)**
+- Empfangssignalstärke in dBm (Dezibel Milliwatt)
+- Hilft zur Diagnose von WiFi-Verbindungsproblemen
+
+**Aktuelle Werte**
+- **Temperatur:** Aktuelle Wassertemperatur (wenn Sensor verbunden)
+- **Heater Status:** Zeigt, ob der Heizer aktiv ist (ON/OFF)
+- **Relay Status:** Anzeige des aktuellen Relais-Zustands
+
+#### Manual Output Control
+
+Dieser Bereich ermöglicht die manuelle Steuerung aller 4 Ausgänge unabhängig von den konfigurierten Szenen:
+
+**Kanäle 1-3 (LED-Kanäle)**
+Jeder LED-Kanal hat:
+- **3 Schaltflächen:** On, Off, Auto
+  - **On:** Setzt den Kanal auf volle Helligkeit (100%), aktiviert das Helligkeitseingabefeld
+  - **Off:** Schaltet den Kanal aus (0%), deaktiviert das Helligkeitseingabefeld
+  - **Auto:** Folgt automatisch der aktuellen Szenenkonfiguration mit Interpolation
+- **Helligkeitseingabefeld:** Ermöglicht Eingabe von 0-100% (nur im On-Modus aktiviert)
+- **Live-Aktualisierung:** Änderungen der Helligkeit werden sofort an den Controller übertragen
+
+**Relais-Ausgang**
+- 3 Schaltflächen: On, Off, Auto
+- Ermöglicht manuelle Steuerung unabhängig von Szenen
+- Ideal zum Testen oder für Notfallszenarien
+
+**Heizer-Ausgang**
+- 3 Schaltflächen: On, Off, Auto
+- Manuelle Kontrolle der Heizfunktion
+
+#### Funktionsweise der Webseite
+
+**Echtzeit-Updates:**
+- Daten werden alle 5 Sekunden vom Controller abgerufen
+- Temperatur, RSSI und Helligkeitswerte werden automatisch aktualisiert
+
+**Benutzerinteraktion:**
+- Klick auf On/Off/Auto-Buttons sendet sofort einen POST-Request an den Controller
+- Änderung der Helligkeitswerte wird registriert und übertragen
+- Seite wird nach erfolgreicher Änderung neu geladen
+
+**Responsive Design:**
+- Flexibles Layout mit Tabs/Feldern für gute Lesbarkeit
+- Farbcodierung der Buttons für klare Status-Anzeige:
+  - **Grün:** On-Status
+  - **Rot:** Off-Status
+  - **Blau:** Auto-Status
+
+#### Navigation
+
+Am unteren Ende der Homepage finden Sie:
+- **Configuration Page Link:** Öffnet die Konfigurationsseite für erweiterte Einstellungen
+- **Reboot Button:** Startet den Controller neu
+- **Home Button:** Kehrt zur Homepage zurück
+- **Reset to factory defaults:** Setzt alle Einstellungen auf Standardwerte zurück
 
 ## Software
 
