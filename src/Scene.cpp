@@ -5,8 +5,8 @@
 #include <ESP32PWM.h>
 
 // Pin definitions for the MOSFETs
-const int MOSFET1_PIN = 12;
-const int MOSFET2_PIN = 13;
+const int MOSFET1_PIN = 33;
+const int MOSFET2_PIN = 26;
 const int MOSFET3_PIN = 14;
 
 // Pin definition for the relay
