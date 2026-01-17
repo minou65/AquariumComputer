@@ -16,12 +16,8 @@
 
 char Version[] = VERSION_STR; // Manufacturer's Software version code
 
-static Neotimer sceneTimer = Neotimer(60000); // 60 Sekunden
+static Neotimer sceneTimer = Neotimer(5000); // 5 Sekunden
 NTPClient ntpClient;
-
-uint8_t speedFactor = 1;
-static unsigned long startMillis = 0;
-static int scaledMinutesOffset = 0;
 
 void setup() {
 	Serial.begin(115200);
@@ -39,8 +35,6 @@ void setup() {
 	Serial.println("Setting up web handling...");
 	setupWebHandling();
 
-	updateSceneTimer();
-
 	Serial.println("Setting up NTP client...");
 	if (ntpConfig.useNtpServer()) {
 		ntpClient.begin(ntpConfig.ntpServer(), ntpConfig.timeZone(), 0);
@@ -50,30 +44,12 @@ void setup() {
 	}
 }
 
-void setScaledMinutes(int value) {
-	startMillis = millis();
-	scaledMinutesOffset = value % 1440;
-}
-
-int getScaledMinutes(int scale) {
-	unsigned long elapsedMillis_ = millis() - startMillis;
-	unsigned long scaledMinutes_ = (elapsedMillis_ / (60000 / scale));
-	return (scaledMinutesOffset + scaledMinutes_) % 1440;
-}
-
 int getMinutes() {
 	time_t now_ = time(nullptr);
 	struct tm* timeinfo_ = localtime(&now_);
 	int nowMinutes_ = timeinfo_->tm_hour * 60 + timeinfo_->tm_min;
 	return nowMinutes_;
 }
-
-void updateSceneTimer() {
-	unsigned long interval = 60000 / speedFactor;
-	sceneTimer.start(interval);
-	Serial.println("Scene timer updated to interval: " + String(interval) + " ms");
-}
-
 
 void loop() {
 	loopWebHandling();
@@ -89,12 +65,6 @@ void loop() {
 	if (sceneTimer.repeat() || updateOutputs || ConfigChanged) {
 		Scene* scene_ = &scenes[0];
 		int minutes_ = getMinutes();
-		if (speedFactor > 1) {
-			minutes_ = getScaledMinutes(speedFactor);
-			char time_[6];
-			snprintf(time_, sizeof(time_), "%02d:%02d", minutes_ / 60, minutes_ % 60);
-			SERIAL_WEB_SERIALLN("Actual minutes: " + String(minutes_) + " (" + String(time_) + ")");
-		}
 
 		while (scene_ != nullptr) {
 			scene_->setCurrentScene(minutes_);

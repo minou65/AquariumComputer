@@ -49,8 +49,6 @@ AsyncIotWebConf iotWebConf(thingName, &dnsServer, &asyncWebServerWrapper, wifiIn
 bool ShouldReboot = false;
 bool ConfigChanged = false;
 
-extern uint8_t speedFactor;
-
 // -- Method declarations.
 void handleRoot(AsyncWebServerRequest* request);
 void handleDateTime(AsyncWebServerRequest* request);
@@ -65,9 +63,6 @@ iotwebconf::WifiAuthInfo* handleConnectWifiFailure();
 void handleWificonnected();
 void handleWebSerialCommand(const String& command);
 void handleOnProgress(size_t prg, size_t sz);
-
-extern void updateSceneTimer();
-extern void setScaledMinutes(int value);
 
 class CustomHtmlFormatProvider : public iotwebconf::OptionalGroupHtmlFormatProvider {
 protected:
@@ -476,35 +471,7 @@ void handleWificonnected() {
 }
 
 void handleWebSerialCommand(const String& command) {
-    if (command.startsWith("scale ")) {
-        int value = command.substring(6).toInt();
-        if (value >= 1 && value <= 60) {
-            speedFactor = value;
-            updateSceneTimer();
-            SERIAL_WEB_SERIALLN("Speed factor set to: " + String(speedFactor));
-        }
-        else {
-            SERIAL_WEB_SERIALLN("Invalid scale value. Use 1-60.");
-        }
-    }
-    if (command.startsWith("setminutes ")) {
-        int value = command.substring(10).toInt();
-        if (value >= 0 && value < 1440) {
-            if (speedFactor > 1) {
-				setScaledMinutes(value);
-                SERIAL_WEB_SERIALLN("Minutes set to: " + String(value));
-			} else {
-				SERIAL_WEB_SERIALLN("Speed factor is 1, cannot set minutes.");
-			}
-            
-        } else {
-            SERIAL_WEB_SERIALLN("Invalid minutes value. Use 0-1439.");
-        }
-        updateSceneTimer();
-    }
-    else {
-        SERIAL_WEB_SERIALLN("Unknown command.");
-    }
+    SERIAL_WEB_SERIALLN("Unknown command.");
 }
 
 void handleOnProgress(size_t prg, size_t sz) {
