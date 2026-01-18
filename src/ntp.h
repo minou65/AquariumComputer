@@ -8,6 +8,7 @@
 #endif
 
 #include "neotimer.h"
+#include <Preferences.h>
 
 class NTPClient {
 public:
@@ -20,6 +21,15 @@ public:
         _TimeOffset_sec = timeOffset;
 
         Serial.println(F("ntp initializing..."));
+
+        // Initialize preferences
+        _preferences.begin("ntp", false);
+        
+        // Set timezone first (needed for correct time display)
+        configTzTime(_TimeZone.c_str(), "");
+        
+        // Restore saved time
+        restoreTime();
 
         _NTPSync = true;
         _initialized = true;
@@ -56,11 +66,62 @@ public:
         return _isValidTime;
     }
 
+    // Set NTP synchronization interval in hours
     void setInterval(int interval) {
         _NTPTimer.start(interval * 3600 * 1000);
     }
 
+    // Call this before reboot to save current time
+    void saveTimeBeforeReboot() {
+        if (_isValidTime) {
+            saveTime();
+            Serial.println(F("Time saved before reboot"));
+        }
+    }
+
 private:
+    void saveTime() {
+        struct tm timeinfo_;
+        if (getLocalTime(&timeinfo_)) {
+            time_t now = mktime(&timeinfo_);
+            
+            // Store timestamp only (no uptime needed)
+            _preferences.putULong("timestamp", (unsigned long)now);
+            
+            Serial.print(F("Time saved to preferences: "));
+            Serial.println((unsigned long)now);
+        }
+    }
+
+    void restoreTime() {
+        unsigned long savedTimestamp = _preferences.getULong("timestamp", 0);
+        
+        if (savedTimestamp > 0) {
+            // After reboot, use saved time plus current uptime as approximation
+            unsigned long currentUptime = millis();
+            unsigned long elapsedSeconds = currentUptime / 1000;
+            
+            // Calculate restored time
+            time_t restoredTime = (time_t)(savedTimestamp + elapsedSeconds);
+            
+            struct timeval tv = { .tv_sec = restoredTime, .tv_usec = 0 };
+            settimeofday(&tv, NULL);
+            
+            _isValidTime = true;
+            
+            Serial.println(F("Time restored from preferences"));
+            struct tm timeinfo_;
+            if (getLocalTime(&timeinfo_)) {
+                char s_[51];
+                strftime(s_, 50, "%A, %B %d %Y %H:%M:%S", &timeinfo_);
+                Serial.print(F("Restored time: "));
+                Serial.println(s_);
+            }
+        } else {
+            Serial.println(F("No saved time found in preferences"));
+        }
+    }
+
     String _NTPServer;
     String _TimeZone;
     int32_t _TimeOffset_sec;
@@ -68,6 +129,7 @@ private:
     bool _NTPSync;
     bool _initialized;
     bool _isValidTime = false;
+    Preferences _preferences;
 };
 
 #endif

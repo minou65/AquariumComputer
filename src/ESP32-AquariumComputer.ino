@@ -86,6 +86,11 @@ void loop() {
 	if (ShouldReboot) {
 		SERIAL_WEB_SERIALLN("Rebooting...");
 
+		// Save time before reboot
+		if (ntpClient.isInitialized() && ntpClient.isValidTime()) {
+			ntpClient.saveTimeBeforeReboot();
+		}
+
 		delay(1000);
 		ESP.restart();
 	}
