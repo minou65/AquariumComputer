@@ -81,7 +81,8 @@ function updateData(jsonData) {
 
         for (let i = 1; i <= 3; i++) {
             let input = document.getElementById('brightnessCh' + i);
-            if (input) {
+            let onBtn = document.querySelector('#Channel' + i + 'Btns .output-btn.on');
+            if (input && !(onBtn && onBtn.classList.contains('active'))) {
                 input.value = jsonData.outputs['ch' + i];
             }
         }
