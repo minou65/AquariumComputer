@@ -44,13 +44,6 @@ void setup() {
 	}
 }
 
-int getMinutes() {
-	time_t now_ = time(nullptr);
-	struct tm* timeinfo_ = localtime(&now_);
-	int nowMinutes_ = timeinfo_->tm_hour * 60 + timeinfo_->tm_min;
-	return nowMinutes_;
-}
-
 void loop() {
 	loopWebHandling();
 
@@ -64,7 +57,7 @@ void loop() {
 	
 	if (sceneTimer.repeat() || updateOutputs || ConfigChanged) {
 		Scene* scene_ = &scenes[0];
-		int minutes_ = getMinutes();
+		int minutes_ = ntpClient.getMinutesSinceMidnight();;
 
 		while (scene_ != nullptr) {
 			scene_->setCurrentScene(minutes_);
