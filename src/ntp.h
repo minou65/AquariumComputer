@@ -79,6 +79,138 @@ public:
         }
     }
 
+    // Get current time as Unix timestamp
+    time_t getEpochTime() const {
+        return time(nullptr);
+    }
+
+    // Get formatted time string (HH:MM:SS)
+    String getTimeString() const {
+        struct tm timeinfo;
+        if (!getLocalTime(&timeinfo)) {
+            return "00:00:00";
+        }
+        char buffer[9];
+        strftime(buffer, sizeof(buffer), "%H:%M:%S", &timeinfo);
+        return String(buffer);
+    }
+
+    // Get formatted date string (DD.MM.YYYY)
+    String getDateString() const {
+        struct tm timeinfo;
+        if (!getLocalTime(&timeinfo)) {
+            return "01.01.1970";
+        }
+        char buffer[11];
+        strftime(buffer, sizeof(buffer), "%d.%m.%Y", &timeinfo);
+        return String(buffer);
+    }
+
+    // Get formatted date and time string (DD.MM.YYYY HH:MM:SS)
+    String getDateTimeString() const {
+        struct tm timeinfo;
+        if (!getLocalTime(&timeinfo)) {
+            return "01.01.1970 00:00:00";
+        }
+        char buffer[20];
+        strftime(buffer, sizeof(buffer), "%d.%m.%Y %H:%M:%S", &timeinfo);
+        return String(buffer);
+    }
+
+    // Get ISO 8601 formatted string (YYYY-MM-DDTHH:MM:SS)
+    String getISOString() const {
+        struct tm timeinfo;
+        if (!getLocalTime(&timeinfo)) {
+            return "1970-01-01T00:00:00";
+        }
+        char buffer[20];
+        strftime(buffer, sizeof(buffer), "%Y-%m-%dT%H:%M:%S", &timeinfo);
+        return String(buffer);
+    }
+
+    // Get current hour (0-23)
+    int getHour() const {
+        struct tm timeinfo;
+        if (!getLocalTime(&timeinfo)) {
+            return 0;
+        }
+        return timeinfo.tm_hour;
+    }
+
+    // Get current minute (0-59)
+    int getMinute() const {
+        struct tm timeinfo;
+        if (!getLocalTime(&timeinfo)) {
+            return 0;
+        }
+        return timeinfo.tm_min;
+    }
+
+    // Get current second (0-59)
+    int getSecond() const {
+        struct tm timeinfo;
+        if (!getLocalTime(&timeinfo)) {
+            return 0;
+        }
+        return timeinfo.tm_sec;
+    }
+
+    // Get current day (1-31)
+    int getDay() const {
+        struct tm timeinfo;
+        if (!getLocalTime(&timeinfo)) {
+            return 1;
+        }
+        return timeinfo.tm_mday;
+    }
+
+    // Get current month (1-12)
+    int getMonth() const {
+        struct tm timeinfo;
+        if (!getLocalTime(&timeinfo)) {
+            return 1;
+        }
+        return timeinfo.tm_mon + 1; // tm_mon is 0-11
+    }
+
+    // Get current year (e.g., 2026)
+    int getYear() const {
+        struct tm timeinfo;
+        if (!getLocalTime(&timeinfo)) {
+            return 1970;
+        }
+        return timeinfo.tm_year + 1900; // tm_year is years since 1900
+    }
+
+    // Get day of week (0=Sunday, 6=Saturday)
+    int getDayOfWeek() const {
+        struct tm timeinfo;
+        if (!getLocalTime(&timeinfo)) {
+            return 0;
+        }
+        return timeinfo.tm_wday;
+    }
+
+    // Get day of week as string
+    String getDayOfWeekString() const {
+        struct tm timeinfo;
+        if (!getLocalTime(&timeinfo)) {
+            return "Unknown";
+        }
+        char buffer[10];
+        strftime(buffer, sizeof(buffer), "%A", &timeinfo);
+        return String(buffer);
+    }
+
+    // Get minutes since midnight (for scene scheduling)
+    int getMinutesSinceMidnight() const {
+        struct tm timeinfo;
+        if (!getLocalTime(&timeinfo)) {
+            return 0;
+        }
+        return timeinfo.tm_hour * 60 + timeinfo.tm_min;
+    }
+
 private:
     void saveTime() {
         struct tm timeinfo_;
