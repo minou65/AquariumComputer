@@ -231,6 +231,11 @@ void setupWebHandling() {
         request->send(response_);
         }
     );
+    server.on("/apple-touch-icon.png", HTTP_GET, [](AsyncWebServerRequest* request) {
+        AsyncWebServerResponse* response_ = request->beginResponse_P(200, "image/png", favicon_96x96, sizeof(favicon_96x96));
+        request->send(response_);
+        }
+    );
     server.onNotFound([](AsyncWebServerRequest* request) {
         AsyncWebRequestWrapper asyncWebRequestWrapper_(request);
         iotWebConf.handleNotFound(&asyncWebRequestWrapper_);
@@ -402,6 +407,10 @@ void handleRoot(AsyncWebServerRequest* request) {
 
     String response_ = "";
     response_ += fp_.getHtmlHead(iotWebConf.getThingName());
+
+    response_ += F("<link rel=\"icon\" type=\"image/png\" sizes=\"96x96\" href=\"/apple-touch-icon.png\">\n");
+    response_ += F("<link rel=\"apple-touch-icon\" sizes=\"96x96\" href=\"/apple-touch-icon.png\">\n");
+
     response_ += fp_.getHtmlStyle();
     response_ += fp_.getHtmlHeadEnd();
     response_ += fp_.getHtmlScript();
