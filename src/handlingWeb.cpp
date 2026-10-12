@@ -329,17 +329,13 @@ void handlePost(AsyncWebServerRequest* request) {
 }
 
 void handleDateTime(AsyncWebServerRequest* request) {
-    ESP_LOGD("handleDateTime", "Time requested");
-
-    // Get the current time
     time_t now_ = time(nullptr);
     struct tm* timeinfo_ = localtime(&now_);
-    char timeStr_[20];
-    char dateStr_[20];
-    strftime(timeStr_, sizeof(timeStr_), "%H:%M:%S", timeinfo_);
-    strftime(dateStr_, sizeof(dateStr_), "%Y-%m-%d", timeinfo_);
 
-    request->send(200, "text/plain", timeStr_);
+    char dateTimeStr_[32];
+    strftime(dateTimeStr_, sizeof(dateTimeStr_), "%Y-%m-%d %H:%M:%S", timeinfo_);
+
+    request->send(200, "text/plain; charset=UTF-8", dateTimeStr_);
 }
 
 void handleData(AsyncWebServerRequest* request) {
