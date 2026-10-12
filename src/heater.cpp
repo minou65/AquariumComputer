@@ -6,6 +6,8 @@
 #include <OneWire.h>
 #include <DallasTemperature.h>
 
+#include <EventLogger.h>
+
 // Pin definition for the temperature sensor
 const int ONE_WIRE_BUS = 32;
 
@@ -38,6 +40,9 @@ void setupHeaterHardware() {
     // Set relay pin as output
     pinMode(RELAY_PIN, OUTPUT);
     digitalWrite(RELAY_PIN, LOW); // Turn off heater initially
+
+    eventLogger.log("Heater hardware setup complete", EventLogger::Status::OK);
+	eventLogger.log("    Used pin for relay: " + String(RELAY_PIN), EventLogger::Status::DEBUG);
 
     xTaskCreatePinnedToCore(
         getTemperature, /* Function to implement the task */
@@ -88,27 +93,91 @@ bool Heater::isHeating() const {
 }
 
 void Heater::process() {
-    if (_currentTemperature == DEVICE_DISCONNECTED_C) {
-        // Sensor error, turn off heater
-        digitalWrite(RELAY_PIN, LOW);
-        return;
-	}
+    static int previousRelayState_ = -1;
+    static bool previousSensorError_ = false;
+    static HeaterStatus previousHeaterStatus_ = static_cast<HeaterStatus>(255);
 
-    if(HeaterStatus::HEATER_OFF == heaterStatus) {
-        digitalWrite(RELAY_PIN, LOW); // Turn off heater
-        return;
-	}
+    if (previousRelayState_ == -1) {
+        previousRelayState_ = digitalRead(RELAY_PIN);
+    }
 
-    if (HeaterStatus::HEATER_ON == heaterStatus) {
-        heaterStatus = HeaterStatus::HEATER_AUTO;
+    // Moduswechsel loggen
+    if (heaterStatus != previousHeaterStatus_) {
+        if (heaterStatus == HEATER_AUTO) {
+            eventLogger.log("Heater set to AUTO by user", EventLogger::Status::INFO);
+        } else if (heaterStatus == HEATER_ON) {
+            eventLogger.log("Heater forced ON by user", EventLogger::Status::INFO);
+        } else if (heaterStatus == HEATER_OFF) {
+            eventLogger.log("Heater forced OFF by user", EventLogger::Status::INFO);
+        }
+        previousHeaterStatus_ = heaterStatus;
+    }
+
+    // Manuelle Modi zuerst behandeln (kein Sensor-Error-Spam in OFF/ON)
+    if (heaterStatus == HEATER_OFF) {
+        if (previousRelayState_ != LOW) {
+            digitalWrite(RELAY_PIN, LOW);
+            previousRelayState_ = LOW;
+        }
+        previousSensorError_ = false;
         return;
     }
 
-    if (_currentTemperature < (maxTemperature() - hysteresis()/2)) {
-        digitalWrite(RELAY_PIN, HIGH); // Turn on heater
-    } else if (_currentTemperature > (maxTemperature() + hysteresis()/2)) {
-        digitalWrite(RELAY_PIN, LOW); // Turn off heater
-	}
+    if (heaterStatus == HEATER_ON) {
+        if (previousRelayState_ != HIGH) {
+            digitalWrite(RELAY_PIN, HIGH);
+            previousRelayState_ = HIGH;
+        }
+        previousSensorError_ = false;
+        return;
+    }
+
+    // AUTO: Sensordaten validieren
+    bool disconnected_ = (_currentTemperature == DEVICE_DISCONNECTED_C);
+    bool invalid85_ = (_currentTemperature > 84.9f && _currentTemperature < 85.1f); // DS18B20 default/invalid
+    bool sensorError_ = disconnected_ || invalid85_;
+
+    if (sensorError_) {
+        if (previousRelayState_ != LOW) {
+            digitalWrite(RELAY_PIN, LOW);
+            previousRelayState_ = LOW;
+        }
+        if (!previousSensorError_) {
+            eventLogger.log(
+                disconnected_
+                    ? "Heater sensor error (disconnected), turning off heater"
+                    : "Heater sensor invalid reading (85.0C), turning off heater",
+                EventLogger::Status::ERROR);
+        }
+        previousSensorError_ = true;
+        return;
+    }
+
+    previousSensorError_ = false;
+
+    float lowerThreshold_ = maxTemperature() - (hysteresis() / 2.0f);
+    float upperThreshold_ = maxTemperature() + (hysteresis() / 2.0f);
+
+    if (_currentTemperature < lowerThreshold_) {
+        if (previousRelayState_ != HIGH) {
+            digitalWrite(RELAY_PIN, HIGH);
+            previousRelayState_ = HIGH;
+            eventLogger.logf(
+                EventLogger::Status::INFO,
+                "Heater turned ON. Current temperature: %.1f \xC2\xB0" "C",
+                _currentTemperature);
+        }
+    }
+    else if (_currentTemperature > upperThreshold_) {
+        if (previousRelayState_ != LOW) {
+            digitalWrite(RELAY_PIN, LOW);
+            previousRelayState_ = LOW;
+            eventLogger.logf(
+                EventLogger::Status::INFO,
+                "Heater turned OFF. Current temperature: %.1f \xC2\xB0" "C",
+                _currentTemperature);
+        }
+    }
 }
 
 

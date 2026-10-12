@@ -4,6 +4,8 @@
 #include "Scene.h"
 #include <ESP32PWM.h>
 
+#include <EventLogger.h>
+
 // Pin definitions for the MOSFETs
 const int MOSFET1_PIN = 33;
 const int MOSFET2_PIN = 26;
@@ -138,31 +140,92 @@ void Scene::setCurrentScene(int minutes) {
 	int duration_, elapsed_;
 	getSceneTiming(minutes, duration_, elapsed_);
 
+	static OutputStatus previousOutputStatus_[OUTPUT_COUNT] = {
+		static_cast<OutputStatus>(255),
+		static_cast<OutputStatus>(255),
+		static_cast<OutputStatus>(255),
+		static_cast<OutputStatus>(255)
+	};
+	static float previousForcedBrightness_[3] = { -1.0f, -1.0f, -1.0f };
+	static int previousRelayLevel_ = -1;
+
+	bool inSceneWindow_ = (elapsed_ >= 0 && elapsed_ < duration_);
+
 	// Handle channels
 	for (uint8_t channel_ = 1; channel_ <= 3; ++channel_) {
-		if (outputStatus[channel_ - 1] == OUTPUT_AUTO && (elapsed_ >= 0 && elapsed_ < duration_)) {
-			float value_ = getInterpolatedChannelValue(channel_, minutes);
-			Channels[channel_ - 1].writeScaled(value_);
-			ChannelsBrigthness[channel_ - 1] = value_;
+		uint8_t index_ = channel_ - 1;
+
+		if (outputStatus[index_] == OUTPUT_AUTO) {
+			if (previousOutputStatus_[index_] != OUTPUT_AUTO) {
+				eventLogger.logf(EventLogger::Status::INFO, "Channel %d set to AUTO", channel_);
+			}
+
+			if (inSceneWindow_) {
+				float value_ = getInterpolatedChannelValue(channel_, minutes);
+				Channels[index_].writeScaled(value_);
+				ChannelsBrigthness[index_] = value_;
+			}
 		}
-		else if (outputStatus[channel_ - 1] == OUTPUT_ON) {
-			Channels[channel_ - 1].writeScaled(ChannelsBrigthness[channel_ - 1]);
+		else if (outputStatus[index_] == OUTPUT_ON) {
+			Channels[index_].writeScaled(ChannelsBrigthness[index_]);
+
+			bool statusChanged_ = previousOutputStatus_[index_] != OUTPUT_ON;
+			bool brightnessChanged_ = previousForcedBrightness_[index_] != ChannelsBrigthness[index_];
+			if (statusChanged_ || brightnessChanged_) {
+				eventLogger.logf(
+					EventLogger::Status::INFO,
+					"Channel %d forced ON by user with brightness %.2f",
+					channel_,
+					ChannelsBrigthness[index_] * 100.0f);
+			}
+			previousForcedBrightness_[index_] = ChannelsBrigthness[index_];
 		}
-		else if (outputStatus[channel_ - 1] == OUTPUT_OFF) {
-			Channels[channel_ - 1].writeScaled(0.0f);
+		else if (outputStatus[index_] == OUTPUT_OFF) {
+			Channels[index_].writeScaled(0.0f);
+
+			if (previousOutputStatus_[index_] != OUTPUT_OFF) {
+				eventLogger.logf(EventLogger::Status::INFO, "Channel %d forced OFF by user", channel_);
+			}
 		}
+
+		previousOutputStatus_[index_] = outputStatus[index_];
 	}
 
 	// Handle relay
-	if (outputStatus[3] == OUTPUT_AUTO && (elapsed_ >= 0 && elapsed_ < duration_)) {
-		digitalWrite(RELAY_PIN, isRelayEnabled() ? HIGH : LOW);
+	if (outputStatus[3] == OUTPUT_AUTO) {
+		if (previousOutputStatus_[3] != OUTPUT_AUTO) {
+			eventLogger.log(EventLogger::Status::INFO == EventLogger::Status::INFO ? "Relay set to AUTO" : "Relay set to AUTO", EventLogger::Status::INFO);
+		}
+
+		if (inSceneWindow_) {
+			int relayLevel_ = isRelayEnabled() ? HIGH : LOW;
+			digitalWrite(RELAY_PIN, relayLevel_);
+
+			bool levelChanged_ = previousRelayLevel_ != relayLevel_;
+			if (levelChanged_) {
+				eventLogger.logf(EventLogger::Status::INFO, "Relay set to %s based on scene timing", relayLevel_ == HIGH ? "ON" : "OFF");
+			}
+			previousRelayLevel_ = relayLevel_;
+		}
 	}
 	else if (outputStatus[3] == OUTPUT_ON) {
 		digitalWrite(RELAY_PIN, HIGH);
+
+		if (previousOutputStatus_[3] != OUTPUT_ON || previousRelayLevel_ != HIGH) {
+			eventLogger.log("Relay forced ON by user", EventLogger::Status::INFO);
+		}
+		previousRelayLevel_ = HIGH;
 	}
 	else if (outputStatus[3] == OUTPUT_OFF) {
 		digitalWrite(RELAY_PIN, LOW);
+
+		if (previousOutputStatus_[3] != OUTPUT_OFF || previousRelayLevel_ != LOW) {
+			eventLogger.log("Relay forced OFF by user", EventLogger::Status::INFO);
+		}
+		previousRelayLevel_ = LOW;
 	}
+
+	previousOutputStatus_[3] = outputStatus[3];
 }
 
 float Scene::getInterpolatedChannelValue(uint8_t channel, int minutes) {

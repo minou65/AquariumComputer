@@ -12,6 +12,7 @@
 #include <IotWebConfAsync.h>
 #include <IotWebRoot.h>
 #include <Preferences.h>
+#include <EventLogger.h>
 
 #include "html.h"
 #include "favicon.h"
@@ -61,7 +62,7 @@ void handleConfigSavedPage(iotwebconf::WebRequestWrapper* webRequestWrapper);
 void handleConnectWifi(const char* ssid, const char* password);
 iotwebconf::WifiAuthInfo* handleConnectWifiFailure();
 void handleWificonnected();
-void handleWebSerialCommand(const String& command);
+void handleWebCommand(const String& command);
 void handleOnProgress(size_t prg, size_t sz);
 
 class CustomHtmlFormatProvider : public iotwebconf::OptionalGroupHtmlFormatProvider {
@@ -236,17 +237,20 @@ void setupWebHandling() {
         request->send(response_);
         }
     );
+
+    // EventLogger Web initialisieren
+    bool webOk_ = eventLogger.beginWeb(&server, "/events");
+    if (!webOk_) {
+        eventLogger.log("EventLogger.beginWeb failed", EventLogger::Status::ERROR);
+    }
+
+    eventLogger.setCommandCallback([](const String& command_) {
+        handleWebCommand(command_);
+        });
+
     server.onNotFound([](AsyncWebServerRequest* request) {
         AsyncWebRequestWrapper asyncWebRequestWrapper_(request);
         iotWebConf.handleNotFound(&asyncWebRequestWrapper_);
-        }
-    );
-
-    WebSerial.begin(&server, "/webserial");
-    WebSerial.onMessage([](uint8_t* data, size_t len) {
-        String command = "";
-        for (size_t i = 0; i < len; i++) command += (char)data[i];
-        handleWebSerialCommand(command);
         }
     );
 
@@ -452,7 +456,7 @@ void handleRoot(AsyncWebServerRequest* request) {
     response_ += fp_.getHtmlTable();
 
     response_ += fp_.getHtmlTableRowText("Open <a href='/config'>configuration page</a>.");
-    response_ += fp_.getHtmlTableRowText("Open <a href='/webserial' target='_blank'>WebSerial Console</a> for live logs.");
+    response_ += fp_.getHtmlTableRowText("Open <a id='eventsLink' href='/events' target='_blank' rel='noopener'>Live Events</a> for live logs.");
     response_ += fp_.getHtmlTableRowText(fp_.getHtmlVersion(Version));
     response_ += fp_.getHtmlTableEnd();
 
@@ -465,8 +469,8 @@ void handleRoot(AsyncWebServerRequest* request) {
 }
 
 void handleConnectWifi(const char* ssid, const char* password) {
-    Serial.println("Connecting to WiFi ...");
     WiFi.begin(ssid, password);
+	eventLogger.log("Connected to WiFi: " + String(ssid), EventLogger::Status::OK);
 }
 
 iotwebconf::WifiAuthInfo* handleConnectWifiFailure() {
@@ -479,8 +483,8 @@ void handleWificonnected() {
     ArduinoOTA.begin();
 }
 
-void handleWebSerialCommand(const String& command) {
-    SERIAL_WEB_SERIALLN("Unknown command.");
+void handleWebCommand(const String& command) {
+	eventLogger.log("WebSerial command received: " + command, EventLogger::Status::INFO);
 }
 
 void handleOnProgress(size_t prg, size_t sz) {

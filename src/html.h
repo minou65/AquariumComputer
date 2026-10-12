@@ -98,48 +98,42 @@ document.addEventListener('DOMContentLoaded', function() {
   document.querySelectorAll('.btn-group').forEach(group => {
     group.querySelectorAll('.output-btn').forEach(btn => {
       btn.addEventListener('click', function() {
-        // Remove active from all buttons in this group
-        group.querySelectorAll('.output-btn').forEach(b => b.classList.remove('active'));
-        // Set active on clicked button
-        this.classList.add('active');
-        // Send state to backend via POST to /post
-        let ch = this.getAttribute('data-ch');
-        let state = this.getAttribute('data-state');
-        let param = '';
-        if (ch === '1') param = 'ch1=' + state;
-        else if (ch === '2') param = 'ch2=' + state;
-        else if (ch === '3') param = 'ch3=' + state;
-        else if (ch === 'relay') param = 'relay=' + state;
-        else if (ch === 'heater') param = 'heater=' + state;
-        fetch('/post', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: param
-        }).then(response => {
-          if (response.ok) window.location.reload();
-        });
-        // Helligkeitsfeld aktivieren/deaktivieren
-        if (ch === '1' || ch === '2' || ch === '3') {
-          let input = document.getElementById('brightnessCh' + ch);
-          if (input) {
-            input.disabled = (state !== 'on');
-            if (state === 'on') {
-              input.value = 100;
-              // Optional: Wert sofort an Backend senden
-              let data = 'ch' + ch + '=on&brightnessCh' + ch + '=100';
-              fetch('/post', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: data
-              }).then(response => {
-                if (response.ok) window.location.reload();
-              });
-            } else {
-              input.value = 0;
-            }
-          }
-        }
-      });
+  group.querySelectorAll('.output-btn').forEach(b => b.classList.remove('active'));
+  this.classList.add('active');
+
+  let ch = this.getAttribute('data-ch');
+  let state = this.getAttribute('data-state');
+  let param = '';
+
+  if (ch === '1' || ch === '2' || ch === '3') {
+    let input = document.getElementById('brightnessCh' + ch);
+    if (input) {
+      input.disabled = (state !== 'on');
+      if (state === 'on') {
+        input.value = 100;
+      } else if (state === 'off') {
+        input.value = 0;
+      }
+
+      param = 'ch' + ch + '=' + state;
+      if (state === 'on') {
+        param += '&brightnessCh' + ch + '=' + input.value;
+      }
+    }
+  } else if (ch === 'relay') {
+    param = 'relay=' + state;
+  } else if (ch === 'heater') {
+    param = 'heater=' + state;
+  }
+
+  fetch('/post', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: param
+  }).then(response => {
+    if (response.ok) window.location.reload();
+  });
+});
     });
   });
 

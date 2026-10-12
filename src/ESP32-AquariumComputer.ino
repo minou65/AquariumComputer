@@ -2,6 +2,8 @@
  Name:		ESP32_AquariumComputer.ino
  Created:	14.12.2025 15:52:45
  Author:	andy
+
+ WEMOS D1 MINI ESP32
 */
 
 #include <Arduino.h>
@@ -14,6 +16,8 @@
 #include "handlingWeb.h"
 #include "neotimer.h"
 
+#include <EventLogger.h>
+
 char Version[] = VERSION_STR; // Manufacturer's Software version code
 
 static Neotimer sceneTimer = Neotimer(5000); // 5 Sekunden
@@ -24,23 +28,24 @@ void setup() {
 	while (!Serial) {
 		delay(1);
 	}
-	Serial.println("AquariumComputer v" + String(Version) + " started");
+
+	eventLogger.logf("AquariumComputer v%s started", Version, EventLogger::Status::INFO);
 	
-	Serial.println("Setting up scene hardware...");
 	setupSceneHardware();
+	eventLogger.log("Scene hardware setup complete", EventLogger::Status::OK);
 
-	Serial.println("Setting up heater hardware...");
 	setupHeaterHardware();
+	eventLogger.log("Heater hardware setup complete", EventLogger::Status::OK);
 
-	Serial.println("Setting up web handling...");
 	setupWebHandling();
+	eventLogger.log("Web handling setup complete", EventLogger::Status::OK);
 
-	Serial.println("Setting up NTP client...");
+	eventLogger.log("Setting up NTP client...", EventLogger::Status::INFO);
 	if (ntpConfig.useNtpServer()) {
 		ntpClient.begin(ntpConfig.ntpServer(), ntpConfig.timeZone(), 0);
 	}
 	else {
-		Serial.println(F("NTP not used"));
+		eventLogger.log("NTP not used", EventLogger::Status::INFO);
 	}
 }
 
@@ -77,7 +82,7 @@ void loop() {
 	}
 
 	if (ShouldReboot) {
-		SERIAL_WEB_SERIALLN("Rebooting...");
+		eventLogger.log("Rebooting...", EventLogger::Status::DEBUG);
 
 		// Save time before reboot
 		if (ntpClient.isInitialized() && ntpClient.isValidTime()) {
