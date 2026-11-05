@@ -6,6 +6,7 @@
  WEMOS D1 MINI ESP32
 */
 
+#include "HeapMonitor.h"
 #include <Arduino.h>
 
 #include "version.h"
@@ -47,18 +48,20 @@ void setup() {
 	else {
 		eventLogger.log("NTP not used", EventLogger::Status::INFO);
 	}
+
+	beginHeapMonitor();
 }
 
 void loop() {
+	loopHeapMonitor();
 	loopWebHandling();
+	loopHeater();
 
 	if (iotWebConf.getState() == iotwebconf::OnLine) {
 		if (ntpClient.isInitialized()) {
 			ntpClient.process();
 		}
 	}
-
-	loopHeater();
 	
 	if (sceneTimer.repeat() || updateOutputs || ConfigChanged) {
 		Scene* scene_ = &scenes[0];
