@@ -228,6 +228,11 @@ void Scene::setCurrentScene(int minutes) {
 	previousOutputStatus_[3] = outputStatus[3];
 }
 
+int Scene::getDistanceBefore(int minutes) const {
+	int start_ = getTimeMinutes();
+	return (minutes - start_ + 1440) % 1440;
+}
+
 float Scene::getInterpolatedChannelValue(uint8_t channel, int minutes) {
 	int duration_, elapsed_;
 	getSceneTiming(minutes, duration_, elapsed_);
@@ -279,6 +284,26 @@ void Scene::getSceneTiming(int minutes, int& duration_, int& elapsed_) const {
 	}
 	duration_ = (nextSceneMinutes_ - currentSceneMinutes_ + 1440) % 1440;
 	elapsed_ = (minutes - currentSceneMinutes_ + 1440) % 1440;
+}
+
+void applyScenes(int minutes) {
+	Scene* current_ = nullptr;
+	int bestDistance_ = 1441; // größer als jeder mögliche Wert (max 1439)
+
+	for (uint8_t i = 0; i < MAX_SCENES; ++i) {
+		if (!scenes[i].isActive()) {
+			continue;
+		}
+		int distance_ = scenes[i].getDistanceBefore(minutes);
+		if (distance_ < bestDistance_) {
+			bestDistance_ = distance_;
+			current_ = &scenes[i];
+		}
+	}
+
+	if (current_ != nullptr) {
+		current_->setCurrentScene(minutes);
+	}
 }
 
 Scene scenes[MAX_SCENES] = {

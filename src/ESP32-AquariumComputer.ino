@@ -64,13 +64,8 @@ void loop() {
 	}
 	
 	if (sceneTimer.repeat() || updateOutputs || ConfigChanged) {
-		Scene* scene_ = &scenes[0];
-		int minutes_ = ntpClient.getMinutesSinceMidnight();;
-
-		while (scene_ != nullptr) {
-			scene_->setCurrentScene(minutes_);
-			scene_ = (Scene*)scene_->getNext();
-		}
+		int minutes_ = ntpClient.getMinutesSinceMidnight();
+		applyScenes(minutes_);
 		updateOutputs = false;
 	}
 

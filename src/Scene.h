@@ -43,6 +43,7 @@ public:
 	   bool isRelayEnabled() const;
 
        void setCurrentScene(int minutes);
+       int getDistanceBefore(int minutes) const;
 private:
     float getInterpolatedChannelValue(uint8_t channel, int minutes);
     Scene* findNextActive();
@@ -72,6 +73,7 @@ private:
     iotwebconf::CheckboxParameter _JumpParam = iotwebconf::CheckboxParameter("Jump", _JumpId, _JumpValue, STRING_LEN, false);
 };
 
+void applyScenes(int minutes);
 extern Scene scenes[MAX_SCENES];
 
 
