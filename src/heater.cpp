@@ -28,21 +28,21 @@ void getTemperature(void* parameter) {
     while (true) {
         sensors.requestTemperatures();
         heater.setTemperature(sensors.getTempCByIndex(0));
-        vTaskDelay(1000 / portTICK_PERIOD_MS); // 1 Sekunde warten
+        vTaskDelay(2000 / portTICK_PERIOD_MS); // 2 Sekunden warten
     }
 }
 
 void setupHeaterHardware() {
     // Start up the library
     sensors.begin();
-    sensors.setResolution(12);
+    sensors.setResolution(10);
 
     // Set relay pin as output
     pinMode(RELAY_PIN, OUTPUT);
     digitalWrite(RELAY_PIN, LOW); // Turn off heater initially
 
     eventLogger.log("Heater hardware setup complete", EventLogger::Status::OK);
-	eventLogger.log("    Used pin for relay: " + String(RELAY_PIN), EventLogger::Status::DEBUG);
+    eventLogger.log("    Used pin for relay: " + String(RELAY_PIN), EventLogger::Status::DEBUG);
 
     xTaskCreatePinnedToCore(
         getTemperature, /* Function to implement the task */
@@ -51,7 +51,7 @@ void setupHeaterHardware() {
         NULL,  /* Task input parameter */
         0,  /* Priority of the task */
         &taskHandle,  /* Task handle. */
-        0 /* Core where the task should run */
+        1 /* Core where the task should run (Core 1, away from WiFi on Core 0) */
     );
 }
 
@@ -96,6 +96,8 @@ void Heater::process() {
     static int previousRelayState_ = -1;
     static bool previousSensorError_ = false;
     static HeaterStatus previousHeaterStatus_ = static_cast<HeaterStatus>(255);
+    static int consecutiveSensorErrors_ = 0;
+    const int kSensorErrorThreshold_ = 5; // ~10 Sekunden bei 2 Sekunden Messintervall, bevor reagiert wird
 
     if (previousRelayState_ == -1) {
         previousRelayState_ = digitalRead(RELAY_PIN);
@@ -105,9 +107,11 @@ void Heater::process() {
     if (heaterStatus != previousHeaterStatus_) {
         if (heaterStatus == HEATER_AUTO) {
             eventLogger.log("Heater set to AUTO by user", EventLogger::Status::INFO);
-        } else if (heaterStatus == HEATER_ON) {
+        }
+        else if (heaterStatus == HEATER_ON) {
             eventLogger.log("Heater forced ON by user", EventLogger::Status::INFO);
-        } else if (heaterStatus == HEATER_OFF) {
+        }
+        else if (heaterStatus == HEATER_OFF) {
             eventLogger.log("Heater forced OFF by user", EventLogger::Status::INFO);
         }
         previousHeaterStatus_ = heaterStatus;
@@ -120,6 +124,7 @@ void Heater::process() {
             previousRelayState_ = LOW;
         }
         previousSensorError_ = false;
+        consecutiveSensorErrors_ = 0;
         return;
     }
 
@@ -129,15 +134,25 @@ void Heater::process() {
             previousRelayState_ = HIGH;
         }
         previousSensorError_ = false;
+        consecutiveSensorErrors_ = 0;
         return;
     }
 
     // AUTO: Sensordaten validieren
     bool disconnected_ = (_currentTemperature == DEVICE_DISCONNECTED_C);
     bool invalid85_ = (_currentTemperature > 84.9f && _currentTemperature < 85.1f); // DS18B20 default/invalid
-    bool sensorError_ = disconnected_ || invalid85_;
+    bool sensorErrorReading_ = disconnected_ || invalid85_;
 
-    if (sensorError_) {
+    if (sensorErrorReading_) {
+        consecutiveSensorErrors_++;
+    }
+    else {
+        // Einzelner guter Wert setzt den Fehlerzähler sofort zurück
+        consecutiveSensorErrors_ = 0;
+        previousSensorError_ = false;
+    }
+
+    if (consecutiveSensorErrors_ >= kSensorErrorThreshold_) {
         if (previousRelayState_ != LOW) {
             digitalWrite(RELAY_PIN, LOW);
             previousRelayState_ = LOW;
@@ -145,15 +160,18 @@ void Heater::process() {
         if (!previousSensorError_) {
             eventLogger.log(
                 disconnected_
-                    ? "Heater sensor error (disconnected), turning off heater"
-                    : "Heater sensor invalid reading (85.0C), turning off heater",
+                ? "Heater sensor error (disconnected), turning off heater"
+                : "Heater sensor invalid reading (85.0C), turning off heater",
                 EventLogger::Status::ERROR);
         }
         previousSensorError_ = true;
         return;
     }
 
-    previousSensorError_ = false;
+    if (sensorErrorReading_) {
+        // Noch innerhalb der Entprellungs-Toleranz: weder loggen noch Relais ändern
+        return;
+    }
 
     float lowerThreshold_ = maxTemperature() - (hysteresis() / 2.0f);
     float upperThreshold_ = maxTemperature() + (hysteresis() / 2.0f);
