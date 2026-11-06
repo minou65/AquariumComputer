@@ -66,6 +66,7 @@ Heater::Heater()
 
     addItem(&_maxTemperatureParam);
     addItem(&_hysteresisParam);
+	_relayRefreshTimer.start();
 }
 
 void Heater::applyDefaultValue() {
@@ -101,6 +102,15 @@ void Heater::process() {
 
     if (previousRelayState_ == -1) {
         previousRelayState_ = digitalRead(RELAY_PIN);
+    }
+
+    // Sicherstellen, dass der Pin regelmässig neu geschrieben wird, auch wenn
+    // sich der Soll-Zustand nicht geändert hat. Schützt gegen Glitches, bei
+    // denen der physische Pegel oder das Relais vom zuletzt gesetzten
+    // Software-Zustand abweicht, ohne dass ein Zustandswechsel erkannt würde.
+    bool forceRelayRefresh_ = _relayRefreshTimer.repeat();
+    if (forceRelayRefresh_) {
+        digitalWrite(RELAY_PIN, previousRelayState_);
     }
 
     // Moduswechsel loggen

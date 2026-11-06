@@ -10,6 +10,7 @@
 #endif
 
 #include <IotWebConfParameter.h>
+#include "neotimer.h"
 
 #define HEATER_NUMBER_LEN 6
 #define HEATER_STRING_LEN 20
@@ -39,6 +40,7 @@ public:
 private:
     char _maxTemperatureValue[HEATER_NUMBER_LEN] = { 0 };
     char _hysteresisValue[HEATER_NUMBER_LEN] = { 0 };
+    Neotimer _relayRefreshTimer = Neotimer(60000);
 
 	float _currentTemperature = 0.0;
 
