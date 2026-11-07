@@ -123,7 +123,7 @@ function updateData(jsonData) {
 
     if (jsonData.heater) {
         const temp = document.getElementById('TemperatureValue');
-        if (temp) temp.innerHTML = jsonData.heater.currentTemperature + "&#176;C";
+        if (temp) temp.innerHTML = Number(jsonData.heater.currentTemperature).toFixed(1) + "&#176;C";
 
         const heater = document.getElementById('HeaterValue');
         if (heater) heater.innerHTML = jsonData.heater.enabled ? "ON" : "OFF";

@@ -23,13 +23,23 @@ DallasTemperature sensors(&oneWire);
 TaskHandle_t taskHandle;
 
 HeaterStatus heaterStatus = HEATER_AUTO;
+volatile bool temperatureVerboseLogging = false;
+DeviceAddress sensorAddress;
+bool sensorAddressKnown = false;
+
+#define SENSOR_ERROR_THRESHOLD 5 // Anzahl aufeinanderfolgender Sensorfehler, bevor der Sensor als "verloren" betrachtet wird
+#define SENSOR_ERROR_INTERVAL 2000 // Intervall in Millisekunden zwischen den Sensorabfragen
+#define SENSOR_REPORT_INTERVAL 15 * 1000 // Intervall in Millisekunden für die Ausgabe der Sensorwerte im Web-Stream
+#define SENSOR_RESOLUTION 12 // Auflösung des DS18B20-Sensors (9-12 Bit)
 
 void getTemperature(void* parameter) {
     const int kConsecutiveFailuresBeforeReinit_ = 5; // ~10 Sekunden bei 2s Intervall
     int consecutiveFailures_ = 0;
+    unsigned long lastReportMillis_ = 0;
+    const unsigned long kReportIntervalMs_ = SENSOR_REPORT_INTERVAL; // alle 30 Sekunden Sensorwert ausgeben (sofern aktiviert)
 
     while (true) {
-        sensors.requestTemperatures();
+        bool requestOk_ = sensors.requestTemperatures();
         float temperature_ = sensors.getTempCByIndex(0);
 
         if (temperature_ == DEVICE_DISCONNECTED_C) {
@@ -41,7 +51,8 @@ void getTemperature(void* parameter) {
                 // falls der Sensor durch eine Störung "verschwunden" ist
                 oneWire.reset();
                 sensors.begin();
-                sensors.setResolution(10);
+                sensors.setResolution(SENSOR_RESOLUTION);
+                sensorAddressKnown = sensors.getAddress(sensorAddress, 0);
 
                 consecutiveFailures_ = 0;
             }
@@ -51,14 +62,41 @@ void getTemperature(void* parameter) {
         }
 
         heater.setTemperature(temperature_);
-        vTaskDelay(2000 / portTICK_PERIOD_MS); // 2 Sekunden warten
+
+        if (temperatureVerboseLogging) {
+            unsigned long now_ = millis();
+            if (now_ - lastReportMillis_ >= kReportIntervalMs_) {
+                lastReportMillis_ = now_;
+                if (temperature_ == DEVICE_DISCONNECTED_C) {
+                    eventLogger.webPrintln("Temperature sensor: disconnected");
+                }
+                else {
+                    String rawInfo_ = "n/a";
+                    if (sensorAddressKnown) {
+                        uint8_t scratchPad_[9];
+                        bool crcOk_ = sensors.readScratchPad(sensorAddress, scratchPad_);
+                        char hexBuf_[28];
+                        snprintf(hexBuf_, sizeof(hexBuf_), "%02X%02X crc=%s",
+                            scratchPad_[0], scratchPad_[1], crcOk_ ? "OK" : "FAIL");
+                        rawInfo_ = String(hexBuf_);
+                    }
+                    eventLogger.webPrintln(
+                        "Temperature sensor: " + String(temperature_, 4) + " \xC2\xB0" "C"
+                        + " (requestOk=" + String(requestOk_ ? "1" : "0")
+                        + ", scratchpad=" + rawInfo_ + ")");
+                }
+            }
+        }
+
+        vTaskDelay(SENSOR_ERROR_INTERVAL / portTICK_PERIOD_MS); // 2 Sekunden warten
     }
 }
 
 void setupHeaterHardware() {
     // Start up the library
     sensors.begin();
-    sensors.setResolution(10);
+    sensors.setResolution(SENSOR_RESOLUTION);
+    sensorAddressKnown = sensors.getAddress(sensorAddress, 0);
 
     // Set relay pin as output
     pinMode(RELAY_PIN, OUTPUT);
@@ -67,6 +105,14 @@ void setupHeaterHardware() {
     eventLogger.log("Heater hardware setup complete", EventLogger::Status::OK);
     eventLogger.log("    Used pin for relay: " + String(RELAY_PIN), EventLogger::Status::DEBUG);
 
+    uint8_t deviceCount_ = sensors.getDeviceCount();
+    bool parasitePower_ = sensors.isParasitePowerMode();
+    eventLogger.logf(
+        EventLogger::Status::DEBUG,
+        "    OneWire devices found: %d, address known: %s, parasite power: %s, resolution: %d bit",
+        deviceCount_, sensorAddressKnown ? "yes" : "no", parasitePower_ ? "yes" : "no", sensors.getResolution());
+
+
     xTaskCreatePinnedToCore(
         getTemperature, /* Function to implement the task */
         "TaskHandle", /* Name of the task */
@@ -74,7 +120,7 @@ void setupHeaterHardware() {
         NULL,  /* Task input parameter */
         0,  /* Priority of the task */
         &taskHandle,  /* Task handle. */
-        1 /* Core where the task should run (Core 1, away from WiFi on Core 0) */
+        0 /* Core where the task should run (away from loop()/WebServer on Core 1) */
     );
 }
 
@@ -121,7 +167,7 @@ void Heater::process() {
     static bool previousSensorError_ = false;
     static HeaterStatus previousHeaterStatus_ = static_cast<HeaterStatus>(255);
     static int consecutiveSensorErrors_ = 0;
-    const int kSensorErrorThreshold_ = 5; // ~10 Sekunden bei 2 Sekunden Messintervall, bevor reagiert wird
+    const int kSensorErrorThreshold_ = SENSOR_ERROR_THRESHOLD; // ~10 Sekunden bei 2 Sekunden Messintervall, bevor reagiert wird
 
     if (previousRelayState_ == -1) {
         previousRelayState_ = digitalRead(RELAY_PIN);

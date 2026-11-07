@@ -537,10 +537,17 @@ void handleWebCommand(const String& command) {
         return;
     }
 
+    if (cmd_ == "verbose") {
+        temperatureVerboseLogging = !temperatureVerboseLogging;
+        eventLogger.webPrintln(String("Verbose temperature logging: ") + (temperatureVerboseLogging ? "ON" : "OFF"));
+        return;
+    }
+
     if (cmd_ == "help") {
         eventLogger.webPrintln("Available commands:");
         eventLogger.webPrintln("  status  - show current values");
         eventLogger.webPrintln("  memory  - show heap and flash memory info");
+        eventLogger.webPrintln("  verbose - toggle periodic temperature logging (every 30s)");
         eventLogger.webPrintln("  help    - show this help");
         return;
     }

@@ -23,6 +23,9 @@ enum HeaterStatus {
 };
 extern HeaterStatus heaterStatus;
 
+// Schaltet die periodische Sensor-Meldung (alle 30s) im Web-Konsolen-Stream ein/aus
+extern volatile bool temperatureVerboseLogging;
+
 class Heater : public iotwebconf::ParameterGroup {
 public:
     Heater();
