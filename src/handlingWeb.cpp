@@ -480,7 +480,70 @@ void handleWificonnected() {
 }
 
 void handleWebCommand(const String& command) {
-	eventLogger.log("WebSerial command received: " + command, EventLogger::Status::INFO);
+
+    String cmd_ = command;
+    cmd_.trim();
+    cmd_.toLowerCase();
+
+    if (cmd_ == "status") {
+        time_t now_ = time(nullptr);
+        struct tm* timeinfo_ = localtime(&now_);
+        char dateTimeStr_[32];
+        strftime(dateTimeStr_, sizeof(dateTimeStr_), "%Y-%m-%d %H:%M:%S", timeinfo_);
+
+        eventLogger.webPrintln("=== Status ===");
+        eventLogger.webPrintln("Time:          " + String(dateTimeStr_));
+        eventLogger.webPrintln("WiFi RSSI:     " + String(WiFi.RSSI()) + " dBm");
+
+        for (uint8_t ch_ = 1; ch_ <= 3; ++ch_) {
+            eventLogger.webPrintln("Channel " + String(ch_) + ":     " + String(getChannelValue(ch_)) + " %");
+        }
+
+        eventLogger.webPrintln(String("Relay:         ") + (isRelayActive() ? "ON" : "OFF"));
+
+        eventLogger.webPrintln(String("Heater:        ") + (heater.isHeating() ? "ON" : "OFF"));
+        eventLogger.webPrintln("  Mode:        " + String(
+            heaterStatus == HEATER_AUTO ? "AUTO" :
+            heaterStatus == HEATER_ON ? "ON" : "OFF"));
+        eventLogger.webPrintln("  Current:     " + String(heater.getCurrentTemperature(), 1) + " \xC2\xB0" "C");
+        eventLogger.webPrintln("  Max:         " + String(heater.maxTemperature(), 1) + " \xC2\xB0" "C");
+        eventLogger.webPrintln("  Hysteresis:  " + String(heater.hysteresis(), 1) + " \xC2\xB0" "C");
+
+        eventLogger.webPrintln("==============");
+        return;
+    }
+
+    if (cmd_ == "memory") {
+        uint32_t heapSize_ = ESP.getHeapSize();
+        uint32_t freeHeap_ = ESP.getFreeHeap();
+        uint32_t usedHeap_ = heapSize_ - freeHeap_;
+        uint32_t minFreeHeap_ = ESP.getMinFreeHeap();
+        uint32_t maxAllocHeap_ = ESP.getMaxAllocHeap();
+
+        uint32_t flashSize_ = ESP.getFlashChipSize();
+        uint32_t sketchSize_ = ESP.getSketchSize();
+        uint32_t freeSketchSpace_ = ESP.getFreeSketchSpace();
+
+        eventLogger.webPrintln("=== Memory ===");
+        eventLogger.webPrintln("Heap total:        " + String(heapSize_) + " Bytes");
+        eventLogger.webPrintln("Heap used:         " + String(usedHeap_) + " Bytes");
+        eventLogger.webPrintln("Heap free:         " + String(freeHeap_) + " Bytes");
+        eventLogger.webPrintln("Heap min free:     " + String(minFreeHeap_) + " Bytes");
+        eventLogger.webPrintln("Heap max alloc:    " + String(maxAllocHeap_) + " Bytes");
+        eventLogger.webPrintln("Flash size:        " + String(flashSize_ / 1024) + " KB");
+        eventLogger.webPrintln("Sketch size:       " + String(sketchSize_ / 1024) + " KB");
+        eventLogger.webPrintln("Free sketch space: " + String(freeSketchSpace_ / 1024) + " KB");
+        eventLogger.webPrintln("===============");
+        return;
+    }
+
+    if (cmd_ == "help") {
+        eventLogger.webPrintln("Available commands:");
+        eventLogger.webPrintln("  status  - show current values");
+        eventLogger.webPrintln("  memory  - show heap and flash memory info");
+        eventLogger.webPrintln("  help    - show this help");
+        return;
+    }
 }
 
 void handleOnProgress(size_t prg, size_t sz) {
