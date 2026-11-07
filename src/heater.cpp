@@ -25,9 +25,32 @@ TaskHandle_t taskHandle;
 HeaterStatus heaterStatus = HEATER_AUTO;
 
 void getTemperature(void* parameter) {
+    const int kConsecutiveFailuresBeforeReinit_ = 5; // ~10 Sekunden bei 2s Intervall
+    int consecutiveFailures_ = 0;
+
     while (true) {
         sensors.requestTemperatures();
-        heater.setTemperature(sensors.getTempCByIndex(0));
+        float temperature_ = sensors.getTempCByIndex(0);
+
+        if (temperature_ == DEVICE_DISCONNECTED_C) {
+            consecutiveFailures_++;
+            if (consecutiveFailures_ >= kConsecutiveFailuresBeforeReinit_) {
+                eventLogger.log("Temperature sensor lost, re-initializing OneWire bus", EventLogger::Status::ERROR);
+
+                // Bus zurücksetzen und Geräte neu suchen,
+                // falls der Sensor durch eine Störung "verschwunden" ist
+                oneWire.reset();
+                sensors.begin();
+                sensors.setResolution(10);
+
+                consecutiveFailures_ = 0;
+            }
+        }
+        else {
+            consecutiveFailures_ = 0;
+        }
+
+        heater.setTemperature(temperature_);
         vTaskDelay(2000 / portTICK_PERIOD_MS); // 2 Sekunden warten
     }
 }
