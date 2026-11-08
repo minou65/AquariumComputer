@@ -477,6 +477,12 @@ iotwebconf::WifiAuthInfo* handleConnectWifiFailure() {
 
 void handleWificonnected() {
     ArduinoOTA.begin();
+
+    // WiFi Modem-Sleep deaktivieren: Das periodische Aufwachen aus dem
+    // Power-Save-Modus verursacht kurze Stromspitzen, die zeitkritische
+    // OneWire-Kommunikation (Temperatursensor) stören können.
+    WiFi.setSleep(false);
+    eventLogger.log("WiFi modem sleep disabled", EventLogger::Status::DEBUG);
 }
 
 void handleWebCommand(const String& command) {
