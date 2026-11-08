@@ -15,16 +15,13 @@ Der Controller verfügt über folgende Ausgänge:
 
 **PWM-Ausgänge (3x)**
 - 3 unabhängig steuerbare PWM-Kanäle
-- Hochleistungs-PWM-Ausgänge
-- Betriebsspannung: 5-36V
-- Dauerlast: 15A pro Kanal
-- Maximallast: 30A (kurzzeitig)
-- Leistung: bis zu 400W
+- PWM-Frequenz: 15 kHz, Auflösung: 12 Bit
+- Steuersignale für externe MOSFET-Leistungsstufen
 
-**Relais-Ausgang (1x)**
-- 1 schaltbarer Relais-Ausgang
-- Schaltlast: bis zu 10A
-- Ideal für Magnetventile und andere Verbraucher
+**Relais-Ausgänge (2x)**
+- Separater Ausgang für das szenengesteuerte Relais
+- Separater Ausgang für das Heizungsrelais
+- Die GPIOs sind Steuersignale; geeignete Treiber bzw. Relaismodule sind erforderlich
 
 ## Beispielkonfiguration
 
@@ -40,13 +37,21 @@ Die folgende Konfiguration zeigt eine typische Anwendung:
 ## Technische Daten
 
 - **Steuerung:** ESP32-basiert
-- **PWM-Kanäle:** 3x, 5-36V, max. 15A/400W
-- **Relais:** 1x, max. 10A Schaltlast
+- **Board:** WEMOS D1 MINI ESP32 (`esp32_d1_mini32`)
+- **PWM-Kanäle:** 3x, 15 kHz, 12 Bit
+- **Relais-Steuerausgänge:** 2x (Szenen und Heizung)
+- **Temperatursensor:** DS18B20 am OneWire-Bus
 - **Szenen:** bis zu 15 speicherbar
+
+Die zulässige Spannung und Last hängen von den verwendeten MOSFET- und Relaismodulen ab. Die angegebenen GPIOs dürfen Verbraucher nicht direkt versorgen. Massgeblich sind die Datenblätter der Module und eine fachgerechte elektrische Auslegung.
 
 ## Konfiguration
 
 Der Aquarium Computer wird über ein Webinterface konfiguriert. Die Einstellungen sind in mehrere Bereiche unterteilt:
+
+### Erstinbetriebnahme
+
+Beim Start ohne eingerichtete WLAN-Verbindung stellt das Gerät den Access Point **AquariumController** bereit. Das Standardpasswort lautet `123456789`; ändern Sie es in der Konfiguration. Rufen Sie nach dem Verbinden die Konfigurationsseite auf, tragen Sie WLAN-Zugangsdaten ein und speichern Sie die Einstellungen.
 
 ### System-Konfiguration
 
@@ -78,6 +83,12 @@ Adresse des NTP-Servers für die Zeitsynchronisation (z.B. `pool.ntp.org` oder `
 #### POSIX Timezone String
 Zeitzoneneinstellung im POSIX-Format.
 - **Standard:** `CET-1CEST,M3.5.0,M10.5.0/3` (Mitteleuropäische Zeit mit Sommer-/Winterzeit)
+
+### Heizer-Konfiguration
+
+Der Heizer verwendet einen DS18B20-Temperatursensor und einen eigenen Relais-Steuerausgang. In der Konfiguration lassen sich die Solltemperatur (17-30 °C, Standard 25 °C) und die Hysterese (0-5 °C) einstellen. Im Automatikmodus schaltet die Heizung unterhalb der Solltemperatur minus halber Hysterese ein und oberhalb der Solltemperatur plus halber Hysterese aus.
+
+Bei einem erkannten Sensorfehler wird die Heizung im Automatikmodus aus Sicherheitsgründen abgeschaltet. Auch ein manuell erzwungenes Einschalten bleibt bei ungültigem Sensorwert standardmaessig gesperrt.
 
 ### Szenen-Konfiguration (Szene 1-15)
 
@@ -116,18 +127,18 @@ Das System berücksichtigt auch Szenenübergänge über Mitternacht. Beispielswe
 Das System berechnet den Übergang korrekt über die Mitternacht hinweg.
 
 **Ausgabe-Steuerungsmodi:**
-Jeder der 4 Ausgänge (3 PWM-Kanäle + 1 Relais) kann in 3 Modi betrieben werden:
+Jeder der 4 szenengesteuerten Ausgänge (3 PWM-Kanäle + Szenen-Relais) kann in 3 Modi betrieben werden. Der Heizer wird separat gesteuert:
 - **AUTO:** Das System folgt automatisch der aktuellen Szene (mit Interpolation zu nächster Szene)
 - **ON:** Der Ausgang wird manuell eingeschaltet und ignoriert alle Szenenvorgaben
 - **OFF:** Der Ausgang wird manuell ausgeschaltet und ignoriert alle Szenenvorgaben
 
-Dies ermöglicht Überschreibungen der automatischen Szenenuführung für Tests oder manuelle Steuerung.
+Dies ermöglicht Überschreibungen der automatischen Szenensteuerung für Tests oder manuelle Steuerung.
 
 **Sprungtransitionen:**
-Wenn das Jump-Flag aktiviert ist, wird die Interpolation für diese Szene übersprungen. Statt einer sanften Überblendung erfolgt ein sofortiger Sprung auf die Sollwerte der aktuellen Szene. Dies ist nützlich für plötzliche Lichtwechsel oder Notfallszenarien.
+Ist das Jump-Flag einer Szene aktiviert, wird die Überblendung von der vorherigen Szene zu dieser Szene ausgelassen. Zum eingestellten Zeitpunkt werden die Werte der Szene übernommen. Das eignet sich für abrupte Lichtwechsel.
 
 ### Konfigurationsbeispiel
-Um 06:00 leuchtet das Mondlicht mit 10%. Bis um 09:00 wird es auf 0% geregelt, gleichzeit wird Channel 1 auf 30% geregelt. Von 09:00 bis 12:00 Uhr werden Channel 1 und 2 auf 100% geregelt. Ab 12:00 Uhr wird das Relais eingeschaltet und damit die CO2 zufuhr aktiviert. Um 18:00 Uhr wird das Relais wieder deaktiviert, Channel 1 und 2 sind immer noch auf 100%. Diese werden nun bis 20:00 Uhr auf 30 resp. 0% geregelt. Ab 20:00 Uhr bis 22:00 wird Channel 1 auf 0% regelt und das Mondlicht auf 10%. Dieses ist dann wieder bis 06:00 am nächsten Morgen auf 10%
+Um 06:00 leuchtet das Mondlicht mit 10%. Bis um 09:00 wird es auf 0% geregelt, gleichzeitig wird Channel 1 auf 30% geregelt. Von 09:00 bis 12:00 Uhr werden Channel 1 und 2 auf 100% geregelt. Ab 12:00 Uhr wird das Relais eingeschaltet und damit die CO2-Zufuhr aktiviert. Um 18:00 Uhr wird das Relais wieder deaktiviert, Channel 1 und 2 sind immer noch auf 100%. Diese werden nun bis 20:00 Uhr auf 30 beziehungsweise 0% geregelt. Ab 20:00 Uhr bis 22:00 Uhr wird Channel 1 auf 0% geregelt und das Mondlicht auf 10%. Dieses ist dann wieder bis 06:00 am nächsten Morgen auf 10%.
 
 | Time | Channel 1 | Channel 2 | Channel 3 | Relay | Jump |
 | :---: | :---: | :---: | :---: | :---: | :---: |
@@ -145,16 +156,26 @@ Für den Bau des Aquarium Computers wird folgende Hardware benötigt:
 ### Hauptkomponenten
 
 **Steuereinheit**
-- 1x ESP32 WiFi/Bluetooth Board mit Relais-Ausgang
-  - Spezifikation: DC 7-60V, 1-Kanal Relais
-  - Verwendet für zentrale Steuerung und Relais-Schaltung
+- 1x WEMOS D1 MINI ESP32
+  - Verwendet für zentrale Steuerung und WLAN-Verbindung
 
 **PWM-Leistungsmodule**
-- 3x DC 5V-36V Hochleistungs-MOSFET-Trigger
-  - Dauerlast: 15A pro Modul
-  - Spitzenlast: max. 30A
-  - Leistung: bis zu 400W pro Kanal
+- 3x geeignete MOSFET-Leistungsstufen für die Beleuchtung
   - Verwendet für die Beleuchtungssteuerung
+
+**Relaismodule**
+- Geeignete Relaismodule für den Szenenausgang (GPIO 16) und den Heizungsausgang (GPIO 25)
+
+**Signalbelegung**
+
+| Funktion | ESP32-GPIO |
+|----------|------------|
+| PWM Channel 1 | GPIO 33 |
+| PWM Channel 2 | GPIO 26 |
+| PWM Channel 3 | GPIO 14 |
+| Szenen-Relais | GPIO 16 |
+| Heizungsrelais | GPIO 25 |
+| DS18B20 (OneWire) | GPIO 32 |
 
 **Verkabelung**
 - 4x M12 Wasserdichte Kabel-Steckverbinder (IP65)
@@ -173,7 +194,8 @@ Für den Bau des Aquarium Computers wird folgende Hardware benötigt:
 - Achten Sie auf ausreichende Belüftung der MOSFET-Module bei hoher Last
 - Verwenden Sie ausreichend dimensionierte Kabel (Querschnitt je nach Stromstärke)
 - Die wasserdichten M12-Verbinder eignen sich besonders für den Einsatz in der Nähe des Aquariums
-- Beachten Sie die Sicherheitshinweise beim Umgang mit Netzspannung
+- Prüfen Sie die zulässigen Spannungen und Ströme anhand der Datenblätter der tatsächlich verwendeten Module
+- Beachten Sie die Sicherheitshinweise beim Umgang mit Netzspannung und Feuchtigkeit
 
 ## Web-Interface
 
@@ -224,6 +246,19 @@ Jeder LED-Kanal hat:
 **Echtzeit-Updates:**
 - Daten werden alle 5 Sekunden vom Controller abgerufen
 - Temperatur, RSSI und Helligkeitswerte werden automatisch aktualisiert
+- Der Link **Live Events** öffnet den Ereignis- und Diagnose-Stream
+
+#### Web-Befehle über Live Events
+
+Die Befehle werden im Live-Events-Fenster eingegeben. Gross- und Kleinschreibung wird ignoriert.
+
+- `help` - zeigt die verfügbaren Befehle
+- `status` - zeigt Uhrzeit, WLAN-Signalstärke, Kanalwerte, Relais- und Heizerstatus sowie Temperatur und Heizerparameter
+- `memory` - zeigt Heap- und Flash-Speicherinformationen
+- `verbose` - schaltet die periodischen Temperaturmeldungen im Ereignis-Stream ein oder aus
+- `forceheat` - schaltet die Sensorfehler-Übersteuerung für den manuellen Heizer-Modus ein oder aus
+
+**Achtung:** `forceheat` erlaubt das Heizen im manuellen Modus trotz fehlendem oder fehlerhaftem Temperatursensor. In diesem Zustand besteht kein Überhitzungsschutz. Die Übersteuerung wird beim Neustart zurückgesetzt.
 
 **Benutzerinteraktion:**
 - Klick auf On/Off/Auto-Buttons sendet sofort einen POST-Request an den Controller
@@ -248,50 +283,38 @@ Am unteren Ende der Homepage finden Sie:
 ## Software
 
 ### Entwicklungsumgebung
-Die Software ist für die Arduino IDE oder PlatformIO entwickelt und basiert auf dem ESP32-Framework.
+Das Projekt ist für Visual Studio mit Visual Micro eingerichtet und verwendet das ESP32-Arduino-Framework. Als Zielboard ist der WEMOS D1 MINI ESP32 (`esp32_d1_mini32`) konfiguriert. Eine PlatformIO-Konfiguration ist im Repository nicht enthalten.
 
 ### Erforderliche Bibliotheken
 
-Folgende Bibliotheken werden benötigt, um die Software zu kompilieren:
+Für den Build werden das ESP32-Boardpaket und die folgenden Bibliotheken benötigt:
 
-**Grundlegende ESP32-Bibliotheken**
-- `Arduino.h` - Arduino Core für ESP32
-- `WiFi.h` - WiFi-Funktionalität für ESP32
+**Im ESP32-Arduino-Framework enthalten**
+- `WiFi`, `DNSServer`, `Preferences` und `ArduinoOTA`
 
-**Netzwerk und Web-Interface**
-- `IotWebConfAsync` - Asynchrones Web-Konfigurationsframework
-- `IotWebConfAsyncUpdateServer` - OTA-Update-Server
-- `IotWebRoot` - Web-Root-Handling
+**Zusätzliche Bibliotheken**
+- `IotWebConfAsync`, `IotWebConfAsyncUpdateServer` und `IotWebRoot`
+- `ESP Async WebServer` und `AsyncTCP`
+- `ESP32PWM` (aus ESP32Servo)
+- `OneWire` und `DallasTemperature` für den DS18B20
+- `NTPClient` und `EventLogger`
 
-**Zeit und Timer**
-- NTP-Client (für Zeitsynchronisation)
-- `neotimer` - Timer-Bibliothek (im Projekt enthalten)
+`neotimer` ist im Repository enthalten. Die übrigen oben genannten Zusatzbibliotheken sowie die in der Visual-Micro-Projektdatei eingebundenen Geschwisterprojekte sind separate Abhängigkeiten.
 
 ### Projekt-spezifische Module
 Die folgenden Module sind Teil des Projekts und bereits enthalten:
 - `version.h` - Versionsverwaltung
 - `NTPSettings.h` - NTP-Konfiguration
-- `ntp.h` - NTP-Client-Implementierung
 - `Scene.h` / `Scene.cpp` - Szenen-Verwaltung
 - `handlingWeb.h` / `handlingWeb.cpp` - Web-Interface und Konfiguration
+- `heater.h` / `heater.cpp` - Temperaturmessung und Heizungsregelung
 - `html.h` - HTML-Templates für Web-Interface
 - `favicon.h` - Favicon für Web-Interface
 - `board.txt` - Board-Konfiguration
 
-### Installation der Bibliotheken
+### Build und Upload
 
-**Arduino IDE:**
-1. Öffnen Sie den Library Manager (Sketch → Include Library → Manage Libraries)
-2. Suchen und installieren Sie die erforderlichen Bibliotheken
-3. ESP32 Board Support über Board Manager installieren
-
-**PlatformIO:**
-Die Abhängigkeiten können in der `platformio.ini` definiert werden. Die meisten Bibliotheken werden automatisch heruntergeladen.
-
-### Kompilierung
-1. Öffnen Sie das Projekt in Ihrer IDE
-2. Wählen Sie das richtige ESP32-Board aus
-3. Kompilieren und hochladen Sie die Software auf den ESP32
+Öffnen Sie das Visual-Micro-Projekt, installieren Sie das ESP32-Boardpaket und die genannten externen Abhängigkeiten und wählen Sie das konfigurierte Board **WEMOS D1 MINI ESP32**. `src/board.txt` enthält Build-Hooks für lokale PowerShell-Skripte zur Versionsverwaltung und zum Kopieren der Binärdatei; die dort konfigurierten Pfade müssen in der jeweiligen Entwicklungsumgebung verfügbar sein.
 
 ### Upload-Methoden
 - USB-Kabel (erste Inbetriebnahme)
