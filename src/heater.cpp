@@ -36,13 +36,14 @@ void getTemperature(void* parameter) {
     const int kConsecutiveFailuresBeforeReinit_ = 5; // ~10 Sekunden bei 2s Intervall
     int consecutiveFailures_ = 0;
     unsigned long lastReportMillis_ = 0;
-    const unsigned long kReportIntervalMs_ = SENSOR_REPORT_INTERVAL; // alle 30 Sekunden Sensorwert ausgeben (sofern aktiviert)
+    const unsigned long kReportIntervalMs_ = SENSOR_REPORT_INTERVAL; // alle 15 Sekunden Sensorwert ausgeben (sofern aktiviert)
 
     while (true) {
         bool requestOk_ = sensors.requestTemperatures();
         float temperature_ = sensors.getTempCByIndex(0);
+        bool disconnected_ = (temperature_ == DEVICE_DISCONNECTED_C);
 
-        if (temperature_ == DEVICE_DISCONNECTED_C) {
+        if (disconnected_) {
             consecutiveFailures_++;
             if (consecutiveFailures_ >= kConsecutiveFailuresBeforeReinit_) {
                 eventLogger.log("Temperature sensor lost, re-initializing OneWire bus", EventLogger::Status::ERROR);
@@ -67,23 +68,17 @@ void getTemperature(void* parameter) {
             unsigned long now_ = millis();
             if (now_ - lastReportMillis_ >= kReportIntervalMs_) {
                 lastReportMillis_ = now_;
-                if (temperature_ == DEVICE_DISCONNECTED_C) {
-                    eventLogger.webPrintln("Temperature sensor: disconnected");
+                if (disconnected_) {
+                    eventLogger.webPrintf(
+                        EventLogger::Status::DEBUG,
+                        "Temperature sensor: disconnected (ms since last relay switch: %lu)",
+                        millis() - heater.lastRelaySwitchMillis());
                 }
                 else {
-                    String rawInfo_ = "n/a";
-                    if (sensorAddressKnown) {
-                        uint8_t scratchPad_[9];
-                        bool crcOk_ = sensors.readScratchPad(sensorAddress, scratchPad_);
-                        char hexBuf_[28];
-                        snprintf(hexBuf_, sizeof(hexBuf_), "%02X%02X crc=%s",
-                            scratchPad_[0], scratchPad_[1], crcOk_ ? "OK" : "FAIL");
-                        rawInfo_ = String(hexBuf_);
-                    }
-                    eventLogger.webPrintln(
-                        "Temperature sensor: " + String(temperature_, 4) + " \xC2\xB0" "C"
-                        + " (requestOk=" + String(requestOk_ ? "1" : "0")
-                        + ", scratchpad=" + rawInfo_ + ")");
+                    eventLogger.webPrintf(
+                        EventLogger::Status::DEBUG,
+                        "Temperature sensor: %.4f \xC2\xB0" "C (requestOk=%d)",
+                        temperature_, requestOk_ ? 1 : 0);
                 }
             }
         }
@@ -136,6 +131,7 @@ Heater::Heater()
     addItem(&_maxTemperatureParam);
     addItem(&_hysteresisParam);
 	_relayRefreshTimer.start();
+	_sensorCheckTimer.start();
 }
 
 void Heater::applyDefaultValue() {
@@ -162,12 +158,16 @@ bool Heater::isHeating() const {
     return digitalRead(RELAY_PIN) == HIGH;
 }
 
+unsigned long Heater::lastRelaySwitchMillis() const {
+    return _lastRelaySwitchMillis;
+}
+
 void Heater::process() {
     static int previousRelayState_ = -1;
     static bool previousSensorError_ = false;
     static HeaterStatus previousHeaterStatus_ = static_cast<HeaterStatus>(255);
     static int consecutiveSensorErrors_ = 0;
-    const int kSensorErrorThreshold_ = SENSOR_ERROR_THRESHOLD; // ~10 Sekunden bei 2 Sekunden Messintervall, bevor reagiert wird
+    const int kSensorErrorThreshold_ = SENSOR_ERROR_THRESHOLD;
 
     if (previousRelayState_ == -1) {
         previousRelayState_ = digitalRead(RELAY_PIN);
@@ -177,8 +177,7 @@ void Heater::process() {
     // sich der Soll-Zustand nicht geändert hat. Schützt gegen Glitches, bei
     // denen der physische Pegel oder das Relais vom zuletzt gesetzten
     // Software-Zustand abweicht, ohne dass ein Zustandswechsel erkannt würde.
-    bool forceRelayRefresh_ = _relayRefreshTimer.repeat();
-    if (forceRelayRefresh_) {
+    if (_relayRefreshTimer.repeat()) {
         digitalWrite(RELAY_PIN, previousRelayState_);
     }
 
@@ -196,11 +195,12 @@ void Heater::process() {
         previousHeaterStatus_ = heaterStatus;
     }
 
-    // Manuelle Modi zuerst behandeln (kein Sensor-Error-Spam in OFF/ON)
+    // Manuelle Modi werden sofort abgearbeitet (keine Verzögerung durch den Sensor-Timer)
     if (heaterStatus == HEATER_OFF) {
         if (previousRelayState_ != LOW) {
             digitalWrite(RELAY_PIN, LOW);
             previousRelayState_ = LOW;
+            _lastRelaySwitchMillis = millis();
         }
         previousSensorError_ = false;
         consecutiveSensorErrors_ = 0;
@@ -211,71 +211,75 @@ void Heater::process() {
         if (previousRelayState_ != HIGH) {
             digitalWrite(RELAY_PIN, HIGH);
             previousRelayState_ = HIGH;
+            _lastRelaySwitchMillis = millis();
         }
         previousSensorError_ = false;
         consecutiveSensorErrors_ = 0;
         return;
     }
 
-    // AUTO: Sensordaten validieren
-    bool disconnected_ = (_currentTemperature == DEVICE_DISCONNECTED_C);
-    bool invalid85_ = (_currentTemperature > 84.9f && _currentTemperature < 85.1f); // DS18B20 default/invalid
+    // AUTO: Temperatur wird nur alle 10 Sekunden geprüft, um auf kurze
+    // PWM-bedingte Störungen nicht überempfindlich zu reagieren.
+    if (!_sensorCheckTimer.repeat()) {
+        return;
+    }
+
+    const float currentTemperature_ = _currentTemperature;
+    bool disconnected_ = (currentTemperature_ == DEVICE_DISCONNECTED_C);
+    bool invalid85_ = (currentTemperature_ > 84.9f && currentTemperature_ < 85.1f); // DS18B20 default/invalid
     bool sensorErrorReading_ = disconnected_ || invalid85_;
 
     if (sensorErrorReading_) {
         consecutiveSensorErrors_++;
-    }
-    else {
-        // Einzelner guter Wert setzt den Fehlerzähler sofort zurück
-        consecutiveSensorErrors_ = 0;
-        previousSensorError_ = false;
-    }
 
-    if (consecutiveSensorErrors_ >= kSensorErrorThreshold_) {
-        if (previousRelayState_ != LOW) {
-            digitalWrite(RELAY_PIN, LOW);
-            previousRelayState_ = LOW;
+        if (consecutiveSensorErrors_ >= kSensorErrorThreshold_) {
+            if (previousRelayState_ != LOW) {
+                digitalWrite(RELAY_PIN, LOW);
+                previousRelayState_ = LOW;
+                _lastRelaySwitchMillis = millis();
+            }
+            if (!previousSensorError_) {
+                eventLogger.log(
+                    disconnected_
+                    ? "Heater sensor error (disconnected), turning off heater"
+                    : "Heater sensor invalid reading (85.0C), turning off heater",
+                    EventLogger::Status::ERROR);
+            }
+            previousSensorError_ = true;
         }
-        if (!previousSensorError_) {
-            eventLogger.log(
-                disconnected_
-                ? "Heater sensor error (disconnected), turning off heater"
-                : "Heater sensor invalid reading (85.0C), turning off heater",
-                EventLogger::Status::ERROR);
-        }
-        previousSensorError_ = true;
+        // Sonst: noch innerhalb der Entprellungs-Toleranz, weder loggen noch Relais ändern
         return;
     }
 
-    if (sensorErrorReading_) {
-        // Noch innerhalb der Entprellungs-Toleranz: weder loggen noch Relais ändern
-        return;
-    }
+    // Guter Messwert: Fehlerzähler zurücksetzen
+    consecutiveSensorErrors_ = 0;
+    previousSensorError_ = false;
 
     float lowerThreshold_ = maxTemperature() - (hysteresis() / 2.0f);
     float upperThreshold_ = maxTemperature() + (hysteresis() / 2.0f);
 
-    if (_currentTemperature < lowerThreshold_) {
+    if (currentTemperature_ < lowerThreshold_) {
         if (previousRelayState_ != HIGH) {
             digitalWrite(RELAY_PIN, HIGH);
             previousRelayState_ = HIGH;
+            _lastRelaySwitchMillis = millis();
             eventLogger.logf(
                 EventLogger::Status::INFO,
                 "Heater turned ON. Current temperature: %.1f \xC2\xB0" "C",
-                _currentTemperature);
+                currentTemperature_);
         }
     }
-    else if (_currentTemperature > upperThreshold_) {
+    else if (currentTemperature_ > upperThreshold_) {
         if (previousRelayState_ != LOW) {
             digitalWrite(RELAY_PIN, LOW);
             previousRelayState_ = LOW;
+            _lastRelaySwitchMillis = millis();
             eventLogger.logf(
                 EventLogger::Status::INFO,
                 "Heater turned OFF. Current temperature: %.1f \xC2\xB0" "C",
-                _currentTemperature);
+                currentTemperature_);
         }
     }
 }
-
 
 Heater heater;

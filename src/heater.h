@@ -37,6 +37,7 @@ public:
     void setTemperature(float temperature);
     float getCurrentTemperature() const;
     bool isHeating() const;
+    unsigned long lastRelaySwitchMillis() const;
 
     void process();
 
@@ -44,8 +45,9 @@ private:
     char _maxTemperatureValue[HEATER_NUMBER_LEN] = { 0 };
     char _hysteresisValue[HEATER_NUMBER_LEN] = { 0 };
     Neotimer _relayRefreshTimer = Neotimer(60000);
-
-	float _currentTemperature = 0.0;
+    Neotimer _sensorCheckTimer = Neotimer(10000);
+    volatile float _currentTemperature = 0.0;
+    unsigned long _lastRelaySwitchMillis = 0;
 
     iotwebconf::NumberParameter _maxTemperatureParam = iotwebconf::NumberParameter(
         "Max Temperatur (°C)", "MaxTemperatureParam", _maxTemperatureValue, HEATER_NUMBER_LEN, "25.0", "17.0..30.0", "min='17.0' max='30.0' step='0.1'");
