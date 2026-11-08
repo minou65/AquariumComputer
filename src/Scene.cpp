@@ -15,7 +15,7 @@ const int MOSFET3_PIN = 14;
 const int RELAY_PIN = GPIO_NUM_16;
 
 // PWM configuration
-const int PWM_FREQ = 5000; // 5 kHz
+const int PWM_FREQ = 15 * 1000; // 15 kHz
 const int PWM_RESOLUTION = 12; // 12 bit (0-4095)
 
 ESP32PWM Channels[3];
