@@ -23,6 +23,7 @@ DallasTemperature sensors(&oneWire);
 TaskHandle_t taskHandle;
 
 HeaterStatus heaterStatus = HEATER_AUTO;
+volatile bool heaterIgnoreSensorErrorWhenForcedOn = false;
 volatile bool temperatureVerboseLogging = false;
 DeviceAddress sensorAddress;
 bool sensorAddressKnown = false;
@@ -146,6 +147,24 @@ float Heater::hysteresis() const {
     return String(_hysteresisValue).toFloat();
 }
 
+void Heater::setRelay(int* previousRelayState, bool high) {
+    int newState_ = high ? HIGH : LOW;
+    if (*previousRelayState != newState_) {
+        digitalWrite(RELAY_PIN, newState_);
+        *previousRelayState = newState_;
+        _lastRelaySwitchMillis = millis();
+    }
+}
+
+bool Heater::isSensorErrorReading(float temperature, bool* disconnected) {
+    bool disconnected_ = (temperature == DEVICE_DISCONNECTED_C);
+    bool invalid85_ = (temperature > 84.9f && temperature < 85.1f); // DS18B20 default/invalid
+    if (disconnected != nullptr) {
+        *disconnected = disconnected_;
+    }
+    return disconnected_ || invalid85_;
+}
+
 void Heater::setTemperature(float temperature) {
     _currentTemperature = temperature;
 }
@@ -197,23 +216,39 @@ void Heater::process() {
 
     // Manuelle Modi werden sofort abgearbeitet (keine Verzögerung durch den Sensor-Timer)
     if (heaterStatus == HEATER_OFF) {
-        if (previousRelayState_ != LOW) {
-            digitalWrite(RELAY_PIN, LOW);
-            previousRelayState_ = LOW;
-            _lastRelaySwitchMillis = millis();
-        }
+        setRelay(&previousRelayState_, false);
         previousSensorError_ = false;
         consecutiveSensorErrors_ = 0;
         return;
     }
 
     if (heaterStatus == HEATER_ON) {
-        if (previousRelayState_ != HIGH) {
-            digitalWrite(RELAY_PIN, HIGH);
-            previousRelayState_ = HIGH;
-            _lastRelaySwitchMillis = millis();
+        bool disconnected_ = false;
+        bool sensorErrorReading_ = isSensorErrorReading(_currentTemperature, &disconnected_);
+
+        if (sensorErrorReading_ && !heaterIgnoreSensorErrorWhenForcedOn) {
+            // Sicherheitsabschaltung: ohne gültige Temperaturmessung kein manuelles Heizen,
+            // es sei denn, der Nutzer hat dies ausdrücklich per Befehl erlaubt.
+            setRelay(&previousRelayState_, false);
+            if (!previousSensorError_) {
+                eventLogger.log(
+                    disconnected_
+                    ? "Heater sensor error (disconnected) while forced ON, turning off heater for safety"
+                    : "Heater sensor invalid reading (85.0C) while forced ON, turning off heater for safety",
+                    EventLogger::Status::ERROR);
+            }
+            previousSensorError_ = true;
+            return;
         }
-        previousSensorError_ = false;
+
+        if (sensorErrorReading_ && !previousSensorError_) {
+            eventLogger.log(
+                "Heater forced ON despite sensor error (override active by user command)",
+                EventLogger::Status::WARN);
+        }
+
+        setRelay(&previousRelayState_, true);
+        previousSensorError_ = sensorErrorReading_;
         consecutiveSensorErrors_ = 0;
         return;
     }
@@ -225,19 +260,14 @@ void Heater::process() {
     }
 
     const float currentTemperature_ = _currentTemperature;
-    bool disconnected_ = (currentTemperature_ == DEVICE_DISCONNECTED_C);
-    bool invalid85_ = (currentTemperature_ > 84.9f && currentTemperature_ < 85.1f); // DS18B20 default/invalid
-    bool sensorErrorReading_ = disconnected_ || invalid85_;
+    bool disconnected_ = false;
+    bool sensorErrorReading_ = isSensorErrorReading(currentTemperature_, &disconnected_);
 
     if (sensorErrorReading_) {
         consecutiveSensorErrors_++;
 
         if (consecutiveSensorErrors_ >= kSensorErrorThreshold_) {
-            if (previousRelayState_ != LOW) {
-                digitalWrite(RELAY_PIN, LOW);
-                previousRelayState_ = LOW;
-                _lastRelaySwitchMillis = millis();
-            }
+            setRelay(&previousRelayState_, false);
             if (!previousSensorError_) {
                 eventLogger.log(
                     disconnected_
@@ -260,9 +290,7 @@ void Heater::process() {
 
     if (currentTemperature_ < lowerThreshold_) {
         if (previousRelayState_ != HIGH) {
-            digitalWrite(RELAY_PIN, HIGH);
-            previousRelayState_ = HIGH;
-            _lastRelaySwitchMillis = millis();
+            setRelay(&previousRelayState_, true);
             eventLogger.logf(
                 EventLogger::Status::INFO,
                 "Heater turned ON. Current temperature: %.1f \xC2\xB0" "C",
@@ -271,9 +299,7 @@ void Heater::process() {
     }
     else if (currentTemperature_ > upperThreshold_) {
         if (previousRelayState_ != LOW) {
-            digitalWrite(RELAY_PIN, LOW);
-            previousRelayState_ = LOW;
-            _lastRelaySwitchMillis = millis();
+            setRelay(&previousRelayState_, false);
             eventLogger.logf(
                 EventLogger::Status::INFO,
                 "Heater turned OFF. Current temperature: %.1f \xC2\xB0" "C",

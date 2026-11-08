@@ -549,12 +549,29 @@ void handleWebCommand(const String& command) {
         return;
     }
 
+    if (cmd_ == "forceheat") {
+        heaterIgnoreSensorErrorWhenForcedOn = !heaterIgnoreSensorErrorWhenForcedOn;
+        eventLogger.log(
+            String("Heater 'force heat despite sensor error' override: ") +
+            (heaterIgnoreSensorErrorWhenForcedOn ? "ENABLED" : "DISABLED"),
+            EventLogger::Status::WARN);
+        eventLogger.webPrintln(String("Force heat despite sensor error: ") + (heaterIgnoreSensorErrorWhenForcedOn ? "ON" : "OFF"));
+        if (heaterIgnoreSensorErrorWhenForcedOn) {
+            eventLogger.webPrintln("WARNING: With this override active, the heater will keep running");
+            eventLogger.webPrintln("in HEATER_ON mode even without valid temperature readings.");
+            eventLogger.webPrintln("There is NO overheating protection in this state.");
+        }
+        return;
+    }
+
     if (cmd_ == "help") {
         eventLogger.webPrintln("Available commands:");
-        eventLogger.webPrintln("  status  - show current values");
-        eventLogger.webPrintln("  memory  - show heap and flash memory info");
-        eventLogger.webPrintln("  verbose - toggle periodic temperature logging (every 30s)");
-        eventLogger.webPrintln("  help    - show this help");
+        eventLogger.webPrintln("  status     - show current values");
+        eventLogger.webPrintln("  memory     - show heap and flash memory info");
+        eventLogger.webPrintln("  verbose    - toggle periodic temperature logging (every 30s)");
+        eventLogger.webPrintln("  forceheat  - toggle override to force heating in manual ON mode");
+        eventLogger.webPrintln("               even with a defective/disconnected sensor (no overheat protection!)");
+        eventLogger.webPrintln("  help       - show this help");
         return;
     }
 }

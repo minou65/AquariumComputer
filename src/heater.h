@@ -26,6 +26,12 @@ extern HeaterStatus heaterStatus;
 // Schaltet die periodische Sensor-Meldung (alle 30s) im Web-Konsolen-Stream ein/aus
 extern volatile bool temperatureVerboseLogging;
 
+// Erlaubt im manuellen Modus (HEATER_ON) trotz defektem/fehlendem Temperatursensor
+// weiterzuheizen. Standardmäßig deaktiviert (sicherer Default), da ohne gültige
+// Temperaturmessung keine Überhitzungserkennung möglich ist.
+extern volatile bool heaterIgnoreSensorErrorWhenForcedOn;
+
+
 class Heater : public iotwebconf::ParameterGroup {
 public:
     Heater();
@@ -53,6 +59,15 @@ private:
         "Max Temperatur (°C)", "MaxTemperatureParam", _maxTemperatureValue, HEATER_NUMBER_LEN, "25.0", "17.0..30.0", "min='17.0' max='30.0' step='0.1'");
     iotwebconf::NumberParameter _hysteresisParam = iotwebconf::NumberParameter(
         "Hysterese (°C)", "HysteresisParam", _hysteresisValue, HEATER_NUMBER_LEN, "2.0", "0..5", "min='0.0' max='5.0' step='0.1'");
+
+    // Setzt das Relais auf den gewünschten Zustand, aber nur wenn sich der
+    // Zustand tatsächlich ändert. Aktualisiert dabei den internen Zustand
+    // sowie den Zeitstempel des letzten Schaltvorgangs.
+    void setRelay(int* previousRelayState, bool high);
+
+    // Prüft, ob der aktuelle Temperaturwert einen Sensorfehler darstellt
+    // (Sensor getrennt oder DS18B20-Standard-/Fehlerwert 85.0 °C).
+    static bool isSensorErrorReading(float temperature, bool* disconnected);
 };
 
 extern Heater heater;
