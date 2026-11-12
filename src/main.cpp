@@ -9,7 +9,8 @@
 #include "HeapMonitor.h"
 #include <Arduino.h>
 
-#include <version.h>
+// Build-local candidate keeps failed builds from changing src/version.h.
+#include <build_version.h>
 #include "NTPSettings.h"
 #include "ntp.h"
 #include "Scene.h"
