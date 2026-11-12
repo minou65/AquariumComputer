@@ -13,6 +13,7 @@
 #include <IotWebRoot.h>
 #include <Preferences.h>
 #include <EventLogger.h>
+#include <HeapMonitor.h>
 
 #include "html.h"
 #include "favicon.h"
@@ -155,9 +156,7 @@ void loadOutputStatus() {
 
 
 void setupWebHandling() {
-    Serial.begin(115200);
-    Serial.println();
-    Serial.println("starting up...");
+	eventLogger.log("Setting up web handling...", EventLogger::Status::INFO);
 
     for (int i = 0; i < MAX_SCENES - 1; ++i) { 
         scenes[i].setNext(&scenes[i + 1]);
@@ -191,7 +190,18 @@ void setupWebHandling() {
 
 
     iotWebConf.setupUpdateServer(
-        [](const char* updatePath) { AsyncUpdater.setup(&server, updatePath, handleOnProgress); },
+        [](const char* updatePath) {
+            AsyncUpdater.onBegin([](const String& message) {
+                LOG_INFO("%s", message.c_str());
+                });
+            AsyncUpdater.onEnd([](const String& message) { LOG_OK("%s", message.c_str()); });
+            AsyncUpdater.OnError([](const String& message) {
+                LOG_ERROR("%s", message.c_str());
+                });
+            AsyncUpdater.onProgress([](const String& message) { LOG_INFO("%s", message.c_str()); });
+            AsyncUpdater.onLog([](const String& message) { WEB_LOG_INFO("%s", message.c_str()); });
+            AsyncUpdater.setup(&server, updatePath);
+        },
         [](const char* userName, char* password) { AsyncUpdater.updateCredentials(userName, password); });
 
     server.on("/", HTTP_GET, [](AsyncWebServerRequest* request) { 
@@ -241,7 +251,7 @@ void setupWebHandling() {
     // EventLogger Web initialisieren
     bool webOk_ = eventLogger.beginWeb(&server, "/events");
     if (!webOk_) {
-        eventLogger.log("EventLogger.beginWeb failed", EventLogger::Status::ERROR);
+        eventLogger.log("EventLogger.beginWeb failed", EventLogger::Status::ERROR, 1);
     }
 
     eventLogger.setCommandCallback([](const String& command_) {
@@ -255,6 +265,8 @@ void setupWebHandling() {
     );
 
 	loadOutputStatus();
+
+	eventLogger.log("Web handling setup complete", EventLogger::Status::OK);
 }
 
 void loopWebHandling() {
@@ -498,48 +510,39 @@ void handleWebCommand(const String& command) {
         strftime(dateTimeStr_, sizeof(dateTimeStr_), "%Y-%m-%d %H:%M:%S", timeinfo_);
 
         eventLogger.webPrintln("=== Status ===");
-        eventLogger.webPrintln("Time:          " + String(dateTimeStr_));
-        eventLogger.webPrintln("WiFi RSSI:     " + String(WiFi.RSSI()) + " dBm");
+        eventLogger.webPrintf(EventLogger::Status::INFO, 0, "Time:          %s", dateTimeStr_);
+        eventLogger.webPrintf(EventLogger::Status::INFO, 0, "WiFi RSSI:     %d dBm", WiFi.RSSI());
 
         for (uint8_t ch_ = 1; ch_ <= 3; ++ch_) {
-            eventLogger.webPrintln("Channel " + String(ch_) + ":     " + String(getChannelValue(ch_)) + " %");
+            eventLogger.webPrintf(EventLogger::Status::INFO, 0, "Channel %u:     %d %%", ch_, getChannelValue(ch_));
         }
 
-        eventLogger.webPrintln(String("Relay:         ") + (isRelayActive() ? "ON" : "OFF"));
+        eventLogger.webPrintf(EventLogger::Status::INFO, 0, "Relay:         %s", isRelayActive() ? "ON" : "OFF");
 
-        eventLogger.webPrintln(String("Heater:        ") + (heater.isHeating() ? "ON" : "OFF"));
-        eventLogger.webPrintln("  Mode:        " + String(
+        eventLogger.webPrintf(EventLogger::Status::INFO, 0, "Heater:        %s", heater.isHeating() ? "ON" : "OFF");
+        eventLogger.webPrintf(EventLogger::Status::INFO, 1, "Mode:        %s",
             heaterStatus == HEATER_AUTO ? "AUTO" :
-            heaterStatus == HEATER_ON ? "ON" : "OFF"));
-        eventLogger.webPrintln("  Current:     " + String(heater.getCurrentTemperature(), 1) + " \xC2\xB0" "C");
-        eventLogger.webPrintln("  Max:         " + String(heater.maxTemperature(), 1) + " \xC2\xB0" "C");
-        eventLogger.webPrintln("  Hysteresis:  " + String(heater.hysteresis(), 1) + " \xC2\xB0" "C");
+            heaterStatus == HEATER_ON ? "ON" : "OFF");
+        eventLogger.webPrintf(EventLogger::Status::INFO, 1, "Current:     %.1f \xC2\xB0" "C", heater.getCurrentTemperature());
+        eventLogger.webPrintf(EventLogger::Status::INFO, 1, "Max:         %.1f \xC2\xB0" "C", heater.maxTemperature());
+        eventLogger.webPrintf(EventLogger::Status::INFO, 1, "Hysteresis:  %.1f \xC2\xB0" "C", heater.hysteresis());
 
         eventLogger.webPrintln("==============");
         return;
     }
 
     if (cmd_ == "memory") {
-        uint32_t heapSize_ = ESP.getHeapSize();
-        uint32_t freeHeap_ = ESP.getFreeHeap();
-        uint32_t usedHeap_ = heapSize_ - freeHeap_;
-        uint32_t minFreeHeap_ = ESP.getMinFreeHeap();
-        uint32_t maxAllocHeap_ = ESP.getMaxAllocHeap();
-
         uint32_t flashSize_ = ESP.getFlashChipSize();
         uint32_t sketchSize_ = ESP.getSketchSize();
         uint32_t freeSketchSpace_ = ESP.getFreeSketchSpace();
 
         eventLogger.webPrintln("=== Memory ===");
-        eventLogger.webPrintln("Heap total:        " + String(heapSize_) + " Bytes");
-        eventLogger.webPrintln("Heap used:         " + String(usedHeap_) + " Bytes");
-        eventLogger.webPrintln("Heap free:         " + String(freeHeap_) + " Bytes");
-        eventLogger.webPrintln("Heap min free:     " + String(minFreeHeap_) + " Bytes");
-        eventLogger.webPrintln("Heap max alloc:    " + String(maxAllocHeap_) + " Bytes");
-        eventLogger.webPrintln("Flash size:        " + String(flashSize_ / 1024) + " KB");
-        eventLogger.webPrintln("Sketch size:       " + String(sketchSize_ / 1024) + " KB");
-        eventLogger.webPrintln("Free sketch space: " + String(freeSketchSpace_ / 1024) + " KB");
+        eventLogger.webPrintf(EventLogger::Status::INFO, 1, "Flash size:        %u KB", flashSize_ / 1024);
+        eventLogger.webPrintf(EventLogger::Status::INFO, 1, "Sketch size:       %u KB", sketchSize_ / 1024);
+        eventLogger.webPrintf(EventLogger::Status::INFO, 1, "Free sketch space: %u KB", freeSketchSpace_ / 1024);
         eventLogger.webPrintln("===============");
+
+        printHeapReport();
         return;
     }
 
@@ -555,23 +558,27 @@ void handleWebCommand(const String& command) {
             String("Heater 'force heat despite sensor error' override: ") +
             (heaterIgnoreSensorErrorWhenForcedOn ? "ENABLED" : "DISABLED"),
             EventLogger::Status::WARN);
-        eventLogger.webPrintln(String("Force heat despite sensor error: ") + (heaterIgnoreSensorErrorWhenForcedOn ? "ON" : "OFF"));
+        eventLogger.webPrintln(
+            String("Force heat despite sensor error: ") + 
+            (heaterIgnoreSensorErrorWhenForcedOn ? "ON" : "OFF"), 
+            EventLogger::Status::WARN);
+
         if (heaterIgnoreSensorErrorWhenForcedOn) {
-            eventLogger.webPrintln("WARNING: With this override active, the heater will keep running");
-            eventLogger.webPrintln("in HEATER_ON mode even without valid temperature readings.");
-            eventLogger.webPrintln("There is NO overheating protection in this state.");
+            eventLogger.webPrintln("WARNING: With this override active, the heater will keep running", EventLogger::Status::WARN);
+            eventLogger.webPrintln("in HEATER_ON mode even without valid temperature readings.", EventLogger::Status::WARN);
+            eventLogger.webPrintln("There is NO overheating protection in this state.", EventLogger::Status::WARN);
         }
         return;
     }
 
     if (cmd_ == "help") {
         eventLogger.webPrintln("Available commands:");
-        eventLogger.webPrintln("  status     - show current values");
-        eventLogger.webPrintln("  memory     - show heap and flash memory info");
-        eventLogger.webPrintln("  verbose    - toggle periodic temperature logging (every 30s)");
-        eventLogger.webPrintln("  forceheat  - toggle override to force heating in manual ON mode");
-        eventLogger.webPrintln("               even with a defective/disconnected sensor (no overheat protection!)");
-        eventLogger.webPrintln("  help       - show this help");
+        eventLogger.webPrintln("status     - show current values", EventLogger::Status::INFO, 1);
+        eventLogger.webPrintln("memory     - show heap and flash memory info", EventLogger::Status::INFO, 1);
+        eventLogger.webPrintln("verbose    - toggle periodic temperature logging (every 30s)", EventLogger::Status::INFO, 1);
+        eventLogger.webPrintln("forceheat  - toggle override to force heating in manual ON mode", EventLogger::Status::INFO, 1);
+        eventLogger.webPrintln("               even with a defective/disconnected sensor (no overheat protection!)", EventLogger::Status::INFO, 1);
+        eventLogger.webPrintln("help       - show this help", EventLogger::Status::INFO, 1);
         return;
     }
 }
