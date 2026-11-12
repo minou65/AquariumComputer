@@ -9,7 +9,7 @@
 #include "HeapMonitor.h"
 #include <Arduino.h>
 
-#include "version.h"
+#include <version.h>
 #include "NTPSettings.h"
 #include "ntp.h"
 #include "Scene.h"
@@ -30,26 +30,23 @@ void setup() {
 		delay(1);
 	}
 
-	eventLogger.logf("AquariumComputer v%s started", Version, EventLogger::Status::INFO);
+	eventLogger.logf(EventLogger::Status::INFO, "AquariumComputer v%s started", Version);
 	
 	setupSceneHardware();
-	eventLogger.log("Scene hardware setup complete", EventLogger::Status::OK);
-
 	setupHeaterHardware();
-	eventLogger.log("Heater hardware setup complete", EventLogger::Status::OK);
-
 	setupWebHandling();
-	eventLogger.log("Web handling setup complete", EventLogger::Status::OK);
 
 	eventLogger.log("Setting up NTP client...", EventLogger::Status::INFO);
 	if (ntpConfig.useNtpServer()) {
 		ntpClient.begin(ntpConfig.ntpServer(), ntpConfig.timeZone(), 0);
+		eventLogger.logf(EventLogger::Status::INFO, 1, "NTP server: %s, Timezone: %d", ntpConfig.ntpServer(), ntpConfig.timeZone());
 	}
 	else {
-		eventLogger.log("NTP not used", EventLogger::Status::INFO);
+		eventLogger.log("NTP not used", EventLogger::Status::INFO, 1);
 	}
 
 	beginHeapMonitor();
+	setHeapWarningThresholds(30000, 90);
 }
 
 void loop() {
@@ -70,13 +67,12 @@ void loop() {
 	}
 
 	if (ConfigChanged){
-		Serial.println("Configuration changed, saving to flash and rebooting...");
-
 		if (ntpConfig.useNtpServer()) {
 			ntpClient.begin(ntpConfig.ntpServer(), ntpConfig.timeZone(), 0);
 		}
 
 		ConfigChanged = false;
+		eventLogger.log("Configuration changed, NTP client reinitialized", EventLogger::Status::OK);
 	}
 
 	if (ShouldReboot) {
