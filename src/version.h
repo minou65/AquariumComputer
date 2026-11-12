@@ -1,10 +1,10 @@
 #define VERSION_MAJOR 1
 #define VERSION_MINOR 2
-#define VERSION_PATCH 0
+#define VERSION_PATCH 2
 
 // Automatically generated build version. Do not modify.
-#define VERSION_BUILD 211
-#define VERSION_DATE "2026-11-08"
-#define VERSION_TIME "07:37:18"
-#define VERSION "1.2.0.211"
-#define VERSION_STR "1.2.0.211 (2026-11-08 07:37:18)"
+#define VERSION_BUILD 231
+#define VERSION_DATE "2026-11-12"
+#define VERSION_TIME "10:34:25"
+#define VERSION "1.2.2.231"
+#define VERSION_STR "1.2.2.231 (2026-11-12 10:34:25)"
