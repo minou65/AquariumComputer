@@ -15,7 +15,7 @@ const int MOSFET3_PIN = 14;
 const int RELAY_PIN = GPIO_NUM_16;
 
 // PWM configuration
-const int PWM_FREQ = 15 * 1000; // 15 kHz
+const int PWM_FREQ = 5 * 1000; // 5 kHz
 const int PWM_RESOLUTION = 12; // 12 bit (0-4095)
 
 ESP32PWM Channels[3];
@@ -31,6 +31,7 @@ OutputStatus outputStatus[OUTPUT_COUNT]{
 bool updateOutputs = true;
 
 void setupSceneHardware() {
+	eventLogger.log("Setting up scene hardware...", EventLogger::Status::INFO);
 	ESP32PWM::allocateTimer(0);
 	ESP32PWM::allocateTimer(1);
 	ESP32PWM::allocateTimer(2);
@@ -46,6 +47,8 @@ void setupSceneHardware() {
 
 	pinMode(RELAY_PIN, OUTPUT);
 	digitalWrite(RELAY_PIN, LOW);
+
+	eventLogger.log("Scene hardware setup complete", EventLogger::Status::OK);
 }
 
 void setChannelValue(uint8_t channel, uint16_t value) {
