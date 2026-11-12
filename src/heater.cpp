@@ -89,6 +89,7 @@ void getTemperature(void* parameter) {
 }
 
 void setupHeaterHardware() {
+    eventLogger.log("Setting up heater hardware...", EventLogger::Status::INFO);
     // Start up the library
     sensors.begin();
     sensors.setResolution(SENSOR_RESOLUTION);
@@ -97,15 +98,14 @@ void setupHeaterHardware() {
     // Set relay pin as output
     pinMode(RELAY_PIN, OUTPUT);
     digitalWrite(RELAY_PIN, LOW); // Turn off heater initially
-
-    eventLogger.log("Heater hardware setup complete", EventLogger::Status::OK);
-    eventLogger.log("    Used pin for relay: " + String(RELAY_PIN), EventLogger::Status::DEBUG);
+        
+    eventLogger.log("Used pin for relay: " + String(RELAY_PIN), EventLogger::Status::DEBUG, 1);
 
     uint8_t deviceCount_ = sensors.getDeviceCount();
     bool parasitePower_ = sensors.isParasitePowerMode();
     eventLogger.logf(
-        EventLogger::Status::DEBUG,
-        "    OneWire devices found: %d, address known: %s, parasite power: %s, resolution: %d bit",
+		EventLogger::Status::DEBUG, 1,
+        "OneWire devices found: %d, address known: %s, parasite power: %s, resolution: %d bit",
         deviceCount_, sensorAddressKnown ? "yes" : "no", parasitePower_ ? "yes" : "no", sensors.getResolution());
 
 
@@ -118,6 +118,9 @@ void setupHeaterHardware() {
         &taskHandle,  /* Task handle. */
         0 /* Core where the task should run (away from loop()/WebServer on Core 1) */
     );
+	eventLogger.webPrintf(EventLogger::Status::INFO, 1, "Temperature sensor task created on core %d", xPortGetCoreID());
+
+    eventLogger.log("Heater hardware setup complete", EventLogger::Status::OK);
 }
 
 void loopHeater(){
