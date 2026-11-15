@@ -6,19 +6,22 @@
  WEMOS D1 MINI ESP32
 */
 
-#include "HeapMonitor.h"
-#include <Arduino.h>
 
+#include <Arduino.h>
 // Build-local candidate keeps failed builds from changing src/version.h.
 #include <build_version.h>
+#include <neotimer.h>
+#include <IotWebConfAsync.h>
+#include <EventLogger.h>
+#include <HeapMonitor.h>
+
 #include "NTPSettings.h"
 #include "ntp.h"
 #include "Scene.h"
 #include "heater.h"
 #include "handlingWeb.h"
-#include "neotimer.h"
 
-#include <EventLogger.h>
+
 
 char Version[] = VERSION_STR; // Manufacturer's Software version code
 
