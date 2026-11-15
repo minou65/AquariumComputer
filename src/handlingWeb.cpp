@@ -6,6 +6,9 @@
 #include <WiFi.h>
 
 #include "handlingWeb.h"
+#include "NTPSettings.h"
+#include "Scene.h"
+#include "heater.h"
 #include <DNSServer.h>
 
 #include <IotWebConfAsyncUpdateServer.h>

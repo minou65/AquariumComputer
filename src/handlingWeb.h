@@ -10,9 +10,6 @@
 #endif
 
 #include <IotWebConfAsync.h>
-#include "Scene.h"
-#include "heater.h"
-#include "NTPSettings.h"
 
 extern bool ShouldReboot;
 extern bool ConfigChanged;
