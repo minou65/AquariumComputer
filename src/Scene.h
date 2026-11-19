@@ -38,16 +38,16 @@ public:
        void applyDefaultValue() override;
        uint16_t getChannelValue(uint8_t channel);
        const char* getTimeString() const;
-       int getTimeMinutes() const;
+       int getTimeSeconds() const;
        bool isJumpEnabled() const;
 	   bool isRelayEnabled() const;
 
-       void setCurrentScene(int minutes);
-       int getDistanceBefore(int minutes) const;
+       void setCurrentScene(int seconds);
+       int getDistanceBefore(int seconds) const;
 private:
-    float getInterpolatedChannelValue(uint8_t channel, int minutes);
+    float getInterpolatedChannelValue(uint8_t channel, int seconds);
     Scene* findNextActive();
-    void getSceneTiming(int minutes, int& duration, int& elapsed) const;
+    void getSceneTiming(int seconds, int& duration, int& elapsed) const;
     
     String _id;
 	
@@ -73,7 +73,7 @@ private:
     iotwebconf::CheckboxParameter _JumpParam = iotwebconf::CheckboxParameter("Jump", _JumpId, _JumpValue, STRING_LEN, false);
 };
 
-void applyScenes(int minutes);
+void applyScenes(int seconds);
 extern Scene scenes[MAX_SCENES];
 
 

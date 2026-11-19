@@ -25,7 +25,7 @@
 
 char Version[] = VERSION_STR; // Manufacturer's Software version code
 
-static Neotimer sceneTimer = Neotimer(5000); // 5 Sekunden
+static Neotimer sceneTimer = Neotimer(1000); // 1 second
 NTPClient ntpClient;
 
 void setup() {
@@ -65,8 +65,8 @@ void loop() {
 	}
 	
 	if (sceneTimer.repeat() || updateOutputs || ConfigChanged) {
-		int minutes_ = ntpClient.getMinutesSinceMidnight();
-		applyScenes(minutes_);
+		int seconds_ = ntpClient.getSecondsSinceMidnight();
+		applyScenes(seconds_);
 		updateOutputs = false;
 	}
 

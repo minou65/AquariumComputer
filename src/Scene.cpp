@@ -123,10 +123,10 @@ const char* Scene::getTimeString() const {
 	return _TimeValue;
 }
 
-int Scene::getTimeMinutes() const {
+int Scene::getTimeSeconds() const {
 	int h = 0, m = 0;
 	sscanf(_TimeValue, "%2d:%2d", &h, &m);
-	return h * 60 + m;
+	return h * 3600 + m * 60;
 }
 
 bool Scene::isJumpEnabled() const {
@@ -139,9 +139,9 @@ bool Scene::isRelayEnabled() const {
 		|| strcmp(_RelayValue, "selected") == 0;
 }
 
-void Scene::setCurrentScene(int minutes) {
+void Scene::setCurrentScene(int seconds) {
 	int duration_, elapsed_;
-	getSceneTiming(minutes, duration_, elapsed_);
+	getSceneTiming(seconds, duration_, elapsed_);
 
 	static OutputStatus previousOutputStatus_[OUTPUT_COUNT] = {
 		static_cast<OutputStatus>(255),
@@ -164,7 +164,7 @@ void Scene::setCurrentScene(int minutes) {
 			}
 
 			if (inSceneWindow_) {
-				float value_ = getInterpolatedChannelValue(channel_, minutes);
+				float value_ = getInterpolatedChannelValue(channel_, seconds);
 				Channels[index_].writeScaled(value_);
 				ChannelsBrigthness[index_] = value_;
 			}
@@ -231,14 +231,14 @@ void Scene::setCurrentScene(int minutes) {
 	previousOutputStatus_[3] = outputStatus[3];
 }
 
-int Scene::getDistanceBefore(int minutes) const {
-	int start_ = getTimeMinutes();
-	return (minutes - start_ + 1440) % 1440;
+int Scene::getDistanceBefore(int seconds) const {
+	int start_ = getTimeSeconds();
+	return (seconds - start_ + 86400) % 86400;
 }
 
-float Scene::getInterpolatedChannelValue(uint8_t channel, int minutes) {
+float Scene::getInterpolatedChannelValue(uint8_t channel, int seconds) {
 	int duration_, elapsed_;
-	getSceneTiming(minutes, duration_, elapsed_);
+	getSceneTiming(seconds, duration_, elapsed_);
 
 	Scene* next_ = findNextActive();
 	if (next_ != nullptr && next_->isJumpEnabled()) {
@@ -277,27 +277,27 @@ Scene* Scene::findNextActive() {
 	return nullptr;
 }
 
-// Returns duration_ and elapsed_ (by reference) for a given minute value, handling day wrap-around
-void Scene::getSceneTiming(int minutes, int& duration_, int& elapsed_) const {
-	int currentSceneMinutes_ = getTimeMinutes();
-	int nextSceneMinutes_ = 24 * 60; // Default: 24:00
+// Returns duration_ and elapsed_ (by reference) for a given second value, handling day wrap-around
+void Scene::getSceneTiming(int seconds, int& duration_, int& elapsed_) const {
+	int currentSceneSeconds_ = getTimeSeconds();
+	int nextSceneSeconds_ = 24 * 60 * 60; // Default: 24:00
 	Scene* next_ = const_cast<Scene*>(this)->findNextActive();
 	if (next_ != nullptr) {
-		nextSceneMinutes_ = next_->getTimeMinutes();
+		nextSceneSeconds_ = next_->getTimeSeconds();
 	}
-	duration_ = (nextSceneMinutes_ - currentSceneMinutes_ + 1440) % 1440;
-	elapsed_ = (minutes - currentSceneMinutes_ + 1440) % 1440;
+	duration_ = (nextSceneSeconds_ - currentSceneSeconds_ + 86400) % 86400;
+	elapsed_ = (seconds - currentSceneSeconds_ + 86400) % 86400;
 }
 
-void applyScenes(int minutes) {
+void applyScenes(int seconds) {
 	Scene* current_ = nullptr;
-	int bestDistance_ = 1441; // größer als jeder mögliche Wert (max 1439)
+	int bestDistance_ = 86401; // greater than any possible distance (max 86399)
 
 	for (uint8_t i = 0; i < MAX_SCENES; ++i) {
 		if (!scenes[i].isActive()) {
 			continue;
 		}
-		int distance_ = scenes[i].getDistanceBefore(minutes);
+		int distance_ = scenes[i].getDistanceBefore(seconds);
 		if (distance_ < bestDistance_) {
 			bestDistance_ = distance_;
 			current_ = &scenes[i];
@@ -305,7 +305,7 @@ void applyScenes(int minutes) {
 	}
 
 	if (current_ != nullptr) {
-		current_->setCurrentScene(minutes);
+		current_->setCurrentScene(seconds);
 	}
 }
 
