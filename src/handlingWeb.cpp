@@ -240,16 +240,8 @@ void setupWebHandling() {
         handlePost(request);
         }
     );
-    server.on("/favicon.ico", HTTP_GET, [](AsyncWebServerRequest* request) {
-        AsyncWebServerResponse* response_ = request->beginResponse_P(200, "image/x-icon", favicon_ico, sizeof(favicon_ico));
-        request->send(response_);
-        }
-    );
-    server.on("/apple-touch-icon.png", HTTP_GET, [](AsyncWebServerRequest* request) {
-        AsyncWebServerResponse* response_ = request->beginResponse_P(200, "image/png", favicon_96x96, sizeof(favicon_96x96));
-        request->send(response_);
-        }
-    );
+
+    IconHandler::registerHandlers(&server, favicon_ico, sizeof(favicon_ico));
 
     // EventLogger Web initialisieren
     bool webOk_ = eventLogger.beginWeb(&server, "/events");
@@ -423,8 +415,7 @@ void handleRoot(AsyncWebServerRequest* request) {
     String response_ = "";
     response_ += fp_.getHtmlHead(iotWebConf.getThingName());
 
-    response_ += F("<link rel=\"icon\" type=\"image/png\" sizes=\"96x96\" href=\"/apple-touch-icon.png\">\n");
-    response_ += F("<link rel=\"apple-touch-icon\" sizes=\"96x96\" href=\"/apple-touch-icon.png\">\n");
+    response_ += fp_.getIconLinks();
 
     response_ += fp_.getHtmlStyle();
     response_ += fp_.getHtmlHeadEnd();
@@ -495,7 +486,7 @@ void handleWificonnected() {
 
     // WiFi Modem-Sleep deaktivieren: Das periodische Aufwachen aus dem
     // Power-Save-Modus verursacht kurze Stromspitzen, die zeitkritische
-    // OneWire-Kommunikation (Temperatursensor) stören können.
+    // OneWire-Kommunikation (Temperatursensor) stï¿½ren kï¿½nnen.
     WiFi.setSleep(false);
     eventLogger.log("WiFi modem sleep disabled", EventLogger::Status::DEBUG);
 }
